@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from uuid import UUID
+from datetime import datetime
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -19,6 +20,7 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     is_verified: bool
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -26,4 +28,11 @@ class UserResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     refresh_token: str
+    token_type: str = "bearer"
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
+class TokenRefreshResponse(BaseModel):
+    access_token: str
     token_type: str = "bearer"

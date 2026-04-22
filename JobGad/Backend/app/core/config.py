@@ -32,11 +32,10 @@ class Settings(BaseSettings):
     # Pinecone
     PINECONE_API_KEY: str = ""
     PINECONE_ENVIRONMENT: str = ""
-    
-    # MinIO
-    MINIO_USER: str = "minioadmin"
-    MINIO_PASSWORD: str = "minioadmin"
-    MINIO_ENDPOINT: str = "localhost:9000"
+
+    # Supabase Storage
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
 
     DATABASE_URL: str | None = None
 
