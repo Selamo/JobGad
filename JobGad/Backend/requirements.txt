@@ -23,7 +23,7 @@ langchain-google-genai>=1.0.6
 google-generativeai>=0.5.4
 
 # Embeddings & Vector Database
-pinecone-client>=4.1.1
+pinecone>=4.1.1
 sentence-transformers>=3.0.1
 
 # Document Processing
@@ -52,3 +52,5 @@ supabase>=2.4.0
 
 # AI-powered Search
 tavily-python>=0.3.3
+
+asyncpg

@@ -3,9 +3,8 @@ from app.models.user import User
 from app.models.profile import Profile, Skill, Document, SkillVector
 from app.models.job import JobListing, JobMatch
 from app.models.coaching import CoachingSession, SessionMessage, Iriscore
+from app.models.company import Company, Department, HRProfile, CompanyJoinRequest  # ADD THIS LINE
 
-# By importing all these here, SQLAlchemy knows about them when Base.metadata is accessed.
-# This makes alembic configuration extremely straightforward because it can just import Base from here.
 __all__ = [
     "Base",
     "User",
@@ -17,5 +16,9 @@ __all__ = [
     "JobMatch",
     "CoachingSession",
     "SessionMessage",
-    "Iriscore"
+    "Iriscore",
+    "Company",
+    "Department",
+    "HRProfile",
+    "CompanyJoinRequest",
 ]
