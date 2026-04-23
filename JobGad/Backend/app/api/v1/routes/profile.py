@@ -2,6 +2,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from typing import Optional
 
 from app.core.database import get_db
 from app.api.v1.dependencies import get_current_user
@@ -301,10 +302,12 @@ async def extract_skills_from_document(
     "/me/skill-gap",
     summary="Get AI-powered skill gap analysis for your target role",
 )
-@router.get(
-    "/me/skill-gap",
-    summary="Get AI-powered skill gap analysis for your target role",
-)
+# @router.get(
+#     "/me/skill-gap",
+#     summary="Get AI-powered skill gap analysis for your target role",
+# )
+
+
 async def get_skill_gap_analysis(
     job_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),

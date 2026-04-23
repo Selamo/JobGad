@@ -4,7 +4,6 @@ from sqlalchemy import Column, String, Boolean, DateTime, Float, Text, ForeignKe
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
-
 import enum
 
 
@@ -28,16 +27,25 @@ class Company(Base):
     latitude    = Column(Float)
     longitude   = Column(Float)
     is_verified = Column(Boolean, default=False)
+
+    # Who created this company
     created_by  = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Superadmin approval
+    status      = Column(String(50), default="pending")  # pending | approved | rejected
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
     created_at  = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at  = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     creator      = relationship("User", foreign_keys=[created_by])
+    approver     = relationship("User", foreign_keys=[approved_by])
     departments  = relationship("Department", back_populates="company", cascade="all, delete-orphan")
     hr_profiles  = relationship("HRProfile", back_populates="company", cascade="all, delete-orphan")
-    # job_listings relationship removed — will be added in Phase 5
-    # when company_id foreign key is added to JobListing
+    job_listings = relationship("JobListing", back_populates="company", cascade="all, delete-orphan")
 
 
 class Department(Base):
@@ -51,7 +59,7 @@ class Department(Base):
 
     # Relationships
     company      = relationship("Company", back_populates="departments")
-    # job_listings relationship removed — will be added in Phase 5
+    job_listings = relationship("JobListing", back_populates="department")
 
 
 class HRProfile(Base):
@@ -62,11 +70,19 @@ class HRProfile(Base):
     company_id       = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     job_title        = Column(String(255))
     is_company_admin = Column(Boolean, default=False)
-    created_at       = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # Superadmin approval
+    status      = Column(String(50), default="pending")  # pending | approved | rejected
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     # Relationships
-    user    = relationship("User", back_populates="hr_profile")
-    company = relationship("Company", back_populates="hr_profiles")
+    user     = relationship("User", foreign_keys=[user_id], back_populates="hr_profile")
+    company  = relationship("Company", back_populates="hr_profiles")
+    approver = relationship("User", foreign_keys=[approved_by])
 
 
 class CompanyJoinRequest(Base):

@@ -3,7 +3,8 @@ from app.models.user import User
 from app.models.profile import Profile, Skill, Document, SkillVector
 from app.models.job import JobListing, JobMatch
 from app.models.coaching import CoachingSession, SessionMessage, Iriscore
-from app.models.company import Company, Department, HRProfile, CompanyJoinRequest  # ADD THIS LINE
+from app.models.company import Company, Department, HRProfile, CompanyJoinRequest
+from app.models.application import Application, GeneratedCV, Notification
 
 __all__ = [
     "Base",
@@ -21,4 +22,7 @@ __all__ = [
     "Department",
     "HRProfile",
     "CompanyJoinRequest",
+    "Application",
+    "GeneratedCV",
+    "Notification",
 ]

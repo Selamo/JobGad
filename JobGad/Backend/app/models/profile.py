@@ -29,11 +29,12 @@ class Profile(Base):
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
+  # Relationships
     user = relationship("User", back_populates="profile")
     skills = relationship("Skill", back_populates="profile", cascade="all, delete-orphan")
     skill_vector = relationship("SkillVector", back_populates="profile", uselist=False, cascade="all, delete-orphan")
     job_matches = relationship("JobMatch", back_populates="profile", cascade="all, delete-orphan")
+    applications = relationship("Application", back_populates="profile", cascade="all, delete-orphan")
 
 class Skill(Base):
     __tablename__ = "skills"
