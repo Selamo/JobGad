@@ -21,10 +21,11 @@ class Settings(BaseSettings):
     DB_NAME: str = "career_platform"
     
     # JWT Security Settings
-    SECRET_KEY: str = "your_256_bit_secret_key_here"  # Default placeholder for local dev
+    SECRET_KEY: str = "your_256_bit_secret_key_here"  
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    SUPERADMIN_SECRET: str = "change_this_superadmin_secret"
     
     # AI APIs
     GEMINI_API_KEY: str = ""

@@ -7,6 +7,7 @@ from app.api.v1.routes.auth import router as auth_router
 from app.api.v1.routes.profile import router as profile_router
 from app.api.v1.routes.jobs import router as jobs_router
 from app.api.v1.routes.coaching import router as coaching_router
+from app.api.v1.routes.admin import router as admin_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -28,6 +29,7 @@ app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Aut
 app.include_router(profile_router, prefix=f"{settings.API_V1_STR}/profile", tags=["Profile"])
 app.include_router(jobs_router, prefix=f"{settings.API_V1_STR}/jobs", tags=["Jobs"])
 app.include_router(coaching_router, prefix=f"{settings.API_V1_STR}/coaching", tags=["Coaching"])
+app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin", tags=["Admin"])
 
 @app.get("/health", tags=["System"])
 async def root():
