@@ -310,3 +310,68 @@ async def get_all_hr_profiles(
 
     stmt = stmt.order_by(HRProfile.created_at.desc())
     result = awai
+
+async def get_admin_dashboard(
+    db: AsyncSession,
+    user: User,
+) -> dict:
+    """Get overview stats for the superadmin dashboard."""
+    _require_superadmin(user)
+
+    from app.models.job import JobListing
+    from app.models.application import Application
+    from sqlalchemy import func
+
+    # Count users by role
+    users_result = await db.execute(
+        select(User.role, func.count(User.id)).group_by(User.role)
+    )
+    users_by_role = {row[0]: row[1] for row in users_result.fetchall()}
+
+    # Count companies by status
+    companies_result = await db.execute(
+        select(Company.status, func.count(Company.id)).group_by(Company.status)
+    )
+    companies_by_status = {row[0]: row[1] for row in companies_result.fetchall()}
+
+    # Count HR profiles by status
+    hr_result = await db.execute(
+        select(HRProfile.status, func.count(HRProfile.id)).group_by(HRProfile.status)
+    )
+    hr_by_status = {row[0]: row[1] for row in hr_result.fetchall()}
+
+    # Count active jobs
+    jobs_result = await db.execute(
+        select(func.count(JobListing.id)).where(JobListing.is_active == True)
+    )
+    active_jobs = jobs_result.scalar()
+
+    # Count applications by status
+    apps_result = await db.execute(
+        select(Application.status, func.count(Application.id)).group_by(Application.status)
+    )
+    apps_by_status = {row[0]: row[1] for row in apps_result.fetchall()}
+
+    return {
+        "users": {
+            "total": sum(users_by_role.values()),
+            "by_role": users_by_role,
+        },
+        "companies": {
+            "total": sum(companies_by_status.values()),
+            "by_status": companies_by_status,
+            "pending_approval": companies_by_status.get("pending", 0),
+        },
+        "hr_profiles": {
+            "total": sum(hr_by_status.values()),
+            "by_status": hr_by_status,
+            "pending_approval": hr_by_status.get("pending", 0),
+        },
+        "jobs": {
+            "active": active_jobs,
+        },
+        "applications": {
+            "total": sum(apps_by_status.values()),
+            "by_status": apps_by_status,
+        },
+    }

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.services.email_service import send_welcome_email
+from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.database import get_db
 from app.core.security import (
@@ -72,41 +73,41 @@ async def register_user(user_in: UserCreate, db: AsyncSession = Depends(get_db))
 # ---------------------------------------------------------------------------
 # Login
 # ---------------------------------------------------------------------------
+from fastapi.security import OAuth2PasswordRequestForm
+
 @router.post(
     "/login",
     response_model=Token,
     summary="Authenticate and receive JWT tokens",
 )
-async def login_user(user_in: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login_user(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Authenticate with email and password.
-
-    Returns:
-    - **access_token** — short-lived token (default: 30 min) for API calls
-    - **refresh_token** — long-lived token (default: 7 days) to obtain new access tokens
-    - **token_type** — always `bearer`
+    Returns access_token and refresh_token.
     """
-    # 1. Look up user by email
-    stmt = select(User).where(User.email == user_in.email)
+    # Look up user by email
+    stmt = select(User).where(User.email == form_data.username)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    # 2. Validate credentials (same error for both missing user & wrong password — prevents email enumeration)
-    if not user or not verify_password(user_in.password, user.hashed_password):
+    # Validate credentials
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 3. Block inactive accounts
+    # Block inactive accounts
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account has been deactivated. Please contact support.",
+            detail="This account has been deactivated.",
         )
 
-    # 4. Issue tokens
     return Token(
         access_token=create_access_token(subject=str(user.id)),
         refresh_token=create_refresh_token(subject=str(user.id)),

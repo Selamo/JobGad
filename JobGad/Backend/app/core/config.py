@@ -57,11 +57,11 @@ class Settings(BaseSettings):
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 # Email Settings
-MAIL_USERNAME: str = ""
-MAIL_PASSWORD: str = ""
-MAIL_FROM: str = ""
-MAIL_FROM_NAME: str = "JobGad Platform"
-MAIL_SERVER: str = "smtp.gmail.com"
-MAIL_PORT: int = 587
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    MAIL_FROM: str = ""
+    MAIL_FROM_NAME: str = "JobGad Platform"
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_PORT: int = 587
 
 settings = Settings()
