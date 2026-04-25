@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from app.services.email_service import send_welcome_email
 
 from app.core.database import get_db
 from app.core.security import (
@@ -61,6 +62,10 @@ async def register_user(user_in: UserCreate, db: AsyncSession = Depends(get_db))
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+    await send_welcome_email(
+    email=new_user.email,
+    full_name=new_user.full_name,
+)
     return new_user
 
 

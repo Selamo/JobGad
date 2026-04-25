@@ -1,6 +1,7 @@
 """
 Admin service — superadmin management of companies and HR profiles.
 """
+from sqlalchemy.future import select
 from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from fastapi import HTTPException, status
 from app.models.user import User
 from app.models.company import Company, HRProfile
 from app.models.application import Notification
+from app.services.email_service import send_company_approved_email
 
 
 # ─── Permission Helpers ───────────────────────────────────────────────────────
@@ -118,8 +120,20 @@ async def approve_company(
             user_id=company.created_by,
             type="company_approved",
             title="Company Approved!",
-            message=f"Your company '{company.name}' has been approved by the admin. You can now post jobs.",
+            message=f"Your company '{company.name}' has been approved.",
         )
+
+        # Send email
+        creator_stmt = select(User).where(User.id == company.created_by)
+        creator_result = await db.execute(creator_stmt)
+        creator = creator_result.scalar_one_or_none()
+        if creator:
+            from app.services.email_service import send_company_approved_email
+            await send_company_approved_email(
+                email=creator.email,
+                full_name=creator.full_name,
+                company_name=company.name,
+            )
 
     return company
 
@@ -160,8 +174,121 @@ async def reject_company(
             message=f"Your company '{company.name}' was rejected. Reason: {reason}",
         )
 
+        # Send email
+        creator_stmt = select(User).where(User.id == company.created_by)
+        creator_result = await db.execute(creator_stmt)
+        creator = creator_result.scalar_one_or_none()
+        if creator:
+            from app.services.email_service import send_company_rejected_email
+            await send_company_rejected_email(
+                email=creator.email,
+                full_name=creator.full_name,
+                company_name=company.name,
+                reason=reason,
+            )
+
     return company
 
+async def approve_hr_profile(
+    db: AsyncSession,
+    user: User,
+    hr_profile_id: UUID,
+) -> HRProfile:
+    """Superadmin approves an HR profile."""
+    _require_superadmin(user)
+
+    stmt = select(HRProfile).options(
+        selectinload(HRProfile.user),
+        selectinload(HRProfile.company),
+    ).where(HRProfile.id == hr_profile_id)
+    result = await db.execute(stmt)
+    hr_profile = result.scalar_one_or_none()
+
+    if not hr_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="HR profile not found.",
+        )
+
+    if hr_profile.status == "approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="HR profile is already approved.",
+        )
+
+    hr_profile.status = "approved"
+    hr_profile.approved_by = user.id
+    hr_profile.approved_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(hr_profile)
+
+    # In-app notification
+    await _create_notification(
+        db=db,
+        user_id=hr_profile.user_id,
+        type="hr_approved",
+        title="HR Account Approved!",
+        message=f"Your HR account for '{hr_profile.company.name}' has been approved.",
+    )
+
+    # Send email
+    from app.services.email_service import send_hr_approved_email
+    await send_hr_approved_email(
+        email=hr_profile.user.email,
+        full_name=hr_profile.user.full_name,
+        company_name=hr_profile.company.name,
+    )
+
+    return hr_profile
+
+async def reject_hr_profile(
+    db: AsyncSession,
+    user: User,
+    hr_profile_id: UUID,
+    reason: str,
+) -> HRProfile:
+    """Superadmin rejects an HR profile with a reason."""
+    _require_superadmin(user)
+
+    stmt = select(HRProfile).options(
+        selectinload(HRProfile.user),
+        selectinload(HRProfile.company),
+    ).where(HRProfile.id == hr_profile_id)
+    result = await db.execute(stmt)
+    hr_profile = result.scalar_one_or_none()
+
+    if not hr_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="HR profile not found.",
+        )
+
+    hr_profile.status = "rejected"
+    hr_profile.approved_by = user.id
+    hr_profile.approved_at = datetime.now(timezone.utc)
+    hr_profile.rejection_reason = reason
+    await db.commit()
+    await db.refresh(hr_profile)
+
+    # In-app notification
+    await _create_notification(
+        db=db,
+        user_id=hr_profile.user_id,
+        type="hr_rejected",
+        title="HR Account Rejected",
+        message=f"Your HR account for '{hr_profile.company.name}' was rejected. Reason: {reason}",
+    )
+
+    # Send email
+    from app.services.email_service import send_hr_rejected_email
+    await send_hr_rejected_email(
+        email=hr_profile.user.email,
+        full_name=hr_profile.user.full_name,
+        company_name=hr_profile.company.name,
+        reason=reason,
+    )
+
+    return hr_profile
 
 # ─── HR Profile Management ────────────────────────────────────────────────────
 

@@ -397,3 +397,36 @@ async def analyze_social_profiles(
         "total_new_skills_added": total_new_skills,
         "platforms_analyzed": results,
     }
+
+async def get_documents(db: AsyncSession, user: User) -> list[Document]:
+    """Return all documents uploaded by the current user."""
+    stmt = select(Document).where(Document.user_id == user.id).order_by(Document.created_at.desc())
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def delete_document(db: AsyncSession, user: User, document_id: UUID) -> None:
+    """
+    Delete a document record from the DB and remove the file from Supabase Storage.
+    Only the owning user can delete their documents.
+    """
+    stmt = select(Document).where(Document.id == document_id, Document.user_id == user.id)
+    result = await db.execute(stmt)
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+
+    # Remove file from storage
+    if document.storage_url and document.file_name:
+        storage_path = f"{str(user.id)}/{document.file_name}"
+        try:
+            await delete_file_from_supabase(storage_path)
+        except Exception:
+            pass
+
+    await db.delete(document)
+    await db.commit()
