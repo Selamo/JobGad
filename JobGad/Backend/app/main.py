@@ -9,6 +9,8 @@ from app.api.v1.routes.jobs import router as jobs_router
 from app.api.v1.routes.coaching import router as coaching_router
 from app.api.v1.routes.admin import router as admin_router
 from app.api.v1.routes.hr import router as hr_router
+from app.api.v1.routes.applications import router as applications_router
+from app.api.v1.routes.notifications import router as notifications_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -32,6 +34,14 @@ app.include_router(jobs_router, prefix=f"{settings.API_V1_STR}/jobs", tags=["Job
 app.include_router(coaching_router, prefix=f"{settings.API_V1_STR}/coaching", tags=["Coaching"])
 app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin", tags=["Admin"])
 app.include_router(hr_router, prefix=f"{settings.API_V1_STR}/hr", tags=["HR"])
+app.include_router(applications_router,prefix=f"{settings.API_V1_STR}/applications",
+                   tags=["Applications"],)
+app.include_router(
+    notifications_router,
+    prefix=f"{settings.API_V1_STR}/notifications",
+    tags=["Notifications"],
+)
+
 
 @app.get("/health", tags=["System"])
 async def root():
