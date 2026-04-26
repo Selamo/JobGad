@@ -1,33 +1,20 @@
-"""
-Pinecone vector store tools — wraps the Pinecone v4 SDK and sentence-transformers.
 
-All SDK calls are synchronous, so every public function runs them inside
-asyncio.to_thread() to avoid blocking the FastAPI event loop.
-"""
 import asyncio
 from typing import Optional
-from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone, ServerlessSpec
 from app.core.config import settings
 
-# ─── Embedding model (loaded once at startup) ─────────────────────────────────
-# all-MiniLM-L6-v2 → 384-dim, fast, good semantic quality for skills/jobs
-_model: Optional[SentenceTransformer] = None
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+# ─── Constants ────────────────────────────────────────────────────────────────
 INDEX_NAME = "jobgad-jobs"
+EMBEDDING_DIM = 1024  
 
 
-def _get_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    return _model
+def _get_client() -> Pinecone:
+    return Pinecone(api_key=settings.PINECONE_API_KEY)
 
 
 def _get_index():
-    pc = Pinecone(api_key=settings.PINECONE_API_KEY)
-    # Create index if it doesn't exist yet (idempotent)
+    pc = _get_client()
     if INDEX_NAME not in [idx.name for idx in pc.list_indexes()]:
         pc.create_index(
             name=INDEX_NAME,
@@ -41,9 +28,17 @@ def _get_index():
 # ─── Embedding ────────────────────────────────────────────────────────────────
 
 def embed_text(text: str) -> list[float]:
-    """Generate a single embedding vector for the given text."""
-    model = _get_model()
-    return model.encode(text, normalize_embeddings=True).tolist()
+    """
+    Generate embedding using Pinecone's hosted embedding model.
+    No local model loading — saves huge amounts of RAM.
+    """
+    pc = _get_client()
+    result = pc.inference.embed(
+        model="llama-text-embed-v2",
+        inputs=[text],
+        parameters={"input_type": "passage"},
+    )
+    return result[0].values
 
 
 async def async_embed(text: str) -> list[float]:
@@ -54,48 +49,47 @@ async def async_embed(text: str) -> list[float]:
 # ─── Upsert ───────────────────────────────────────────────────────────────────
 
 async def upsert_job_vector(job_id: str, text: str, metadata: dict) -> str:
-    """
-    Embed a job listing and upsert it into Pinecone.
-    Returns the Pinecone vector ID (prefixed with 'job_').
-    """
+    """Embed a job listing and upsert into Pinecone."""
     vector_id = f"job_{job_id}"
 
     def _upsert():
         index = _get_index()
         vector = embed_text(text)
-        index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": metadata}])
+        index.upsert(vectors=[{
+            "id": vector_id,
+            "values": vector,
+            "metadata": metadata,
+        }])
         return vector_id
 
     return await asyncio.to_thread(_upsert)
 
 
 async def upsert_profile_vector(profile_id: str, text: str) -> str:
-    """
-    Embed a user's skill summary and upsert it into Pinecone.
-    Returns the Pinecone vector ID (prefixed with 'profile_').
-    """
+    """Embed a user profile and upsert into Pinecone."""
     vector_id = f"profile_{profile_id}"
 
     def _upsert():
         index = _get_index()
         vector = embed_text(text)
-        index.upsert(vectors=[{"id": vector_id, "values": vector, "metadata": {"type": "profile"}}])
+        index.upsert(vectors=[{
+            "id": vector_id,
+            "values": vector,
+            "metadata": {"type": "profile"},
+        }])
         return vector_id
 
     return await asyncio.to_thread(_upsert)
 
 
-# ─── Query (Semantic Search) ──────────────────────────────────────────────────
+# ─── Query ────────────────────────────────────────────────────────────────────
 
 async def query_similar_jobs(
     profile_text: str,
     top_k: int = 10,
     filter: Optional[dict] = None,
 ) -> list[dict]:
-    """
-    Find the top_k most semantically similar job listings to the given profile text.
-    Returns: [{"id": vector_id, "score": float, "metadata": {...}}, ...]
-    """
+    """Find the most semantically similar jobs to the given profile text."""
     def _query():
         index = _get_index()
         vector = embed_text(profile_text)
@@ -120,7 +114,7 @@ async def query_similar_jobs(
 # ─── Delete ───────────────────────────────────────────────────────────────────
 
 async def delete_job_vector(job_id: str) -> None:
-    """Remove a job's vector from Pinecone."""
+    """Remove a job vector from Pinecone."""
     def _delete():
         index = _get_index()
         index.delete(ids=[f"job_{job_id}"])
