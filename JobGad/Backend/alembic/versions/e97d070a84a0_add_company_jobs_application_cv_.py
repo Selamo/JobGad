@@ -164,3 +164,4 @@ def downgrade() -> None:
     op.drop_table('company_join_requests')
     op.drop_table('companies')
     # ### end Alembic commands ###
+
