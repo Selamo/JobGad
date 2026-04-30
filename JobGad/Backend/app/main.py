@@ -14,6 +14,7 @@ from app.api.v1.routes.notifications import router as notifications_router
 from app.api.v1.routes.cv import router as cv_router
 from app.api.v1.routes.coaching_ws import router as coaching_ws_router
 from app.api.v1.routes.search import router as search_router
+from app.api.v1.routes.dashboard import router as dashboard_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -42,6 +43,8 @@ app.include_router(notifications_router,prefix=f"{settings.API_V1_STR}/notificat
 app.include_router(cv_router,prefix=f"{settings.API_V1_STR}/cv",tags=["CV Generation"])
 app.include_router(coaching_ws_router,prefix=f"{settings.API_V1_STR}/coaching",tags=["Coaching WebSocket"])
 app.include_router(search_router,prefix=f"{settings.API_V1_STR}/search",tags=["Search"])
+app.include_router(dashboard_router,prefix=f"{settings.API_V1_STR}/dashboard",tags=["Dashboard"],)
+
 
 @app.get("/health", tags=["System"])
 async def root():
