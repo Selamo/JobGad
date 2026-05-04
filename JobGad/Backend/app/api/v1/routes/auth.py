@@ -3,6 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.services.email_service import send_welcome_email
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from fastapi import Request
+from app.core.rate_limiter import limiter
 
 from app.core.database import get_db
 from app.core.security import (
@@ -35,6 +39,13 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user account",
 )
+@limiter.limit("5/minute")  # Max 5 registrations per minute per IP
+async def register_user(
+    request: Request,  # Required for rate limiter
+    user_in: UserCreate,
+    db: AsyncSession = Depends(get_db),
+):
+
 async def register_user(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     """
     Create a new user account.
@@ -80,6 +91,13 @@ from fastapi.security import OAuth2PasswordRequestForm
     response_model=Token,
     summary="Authenticate and receive JWT tokens",
 )
+@limiter.limit("10/minute")  # Max 10 login attempts per minute per IP
+async def login_user(
+    request: Request,  # Required for rate limiter
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+
 async def login_user(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
