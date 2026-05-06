@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # CORS settings
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000","http://localhost:3001",
+    "https://job-gad.vercel.app",]
     
     # Database Settings
     DB_USER: str = "career_user"
