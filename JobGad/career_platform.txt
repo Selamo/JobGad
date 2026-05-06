@@ -1,0 +1,901 @@
+THE UNIVERSITY OF BAMENDA
+College of Technology  |  Department of Computer Engineering
+
+
+AI-POWERED GRADUATE CAREER
+ACCELERATION PLATFORM
+Full Technical Implementation Documentation
+
+
+
+Version
+1.0.0	Date
+April 2026
+Status
+Pre-Implementation	Classification
+Academic / Final Year Project
+
+ 
+Table of Contents
+
+
+ 
+1. Executive Summary
+
+The AI-Powered Graduate Career Acceleration Platform is an end-to-end intelligent system designed to bridge the gap between academic achievement and professional employment for graduates, with a particular focus on the Cameroonian and broader African market. The platform combines three tightly integrated AI subsystems — an Intelligent Profile Engine, a Semantic Job Matching Engine, and an AI Career Coach — into a unified career enablement ecosystem.
+
+Platform Mission
+Analyze → Match → Train → Deploy graduates into relevant employment
+Reduce graduate unemployment through intelligent skill visibility and preparation
+Provide personalized, continuous career coaching powered by large language models
+Serve as a scalable SaaS platform for universities, training centres, and individual graduates
+
+Unlike traditional job boards that provide only listings, this platform actively develops the candidate from profile creation through interview readiness, measuring progress with a proprietary Interview Readiness Index (IRI). The system is built on a modern, fully open-source or free-tier technical stack centred on FastAPI, Next.js, CrewAI, LangChain, and Google Gemini 2.5 Flash.
+ 
+2. Problem Statement & Context
+
+2.1 The Graduate Employment Challenge
+Graduates globally — and specifically in Cameroon — face a persistent disconnect between academic achievement and employment readiness. This manifests in four key systemic failures:
+
+Problem	Root Cause	Impact
+Skill Misrepresentation	Traditional CVs rely on self-reporting without validation	Recruiters cannot assess true capabilities
+Inefficient Job Matching	Keyword-based filtering ignores semantic context	Talented candidates remain undiscovered
+Limited Interview Readiness	No structured, personalized preparation pathways	High rejection rates despite relevant skills
+Low Recruiter Visibility	Poor profiling systems bury qualified candidates	Prolonged unemployment and underemployment
+
+2.2 Why AI Is the Solution
+Artificial intelligence — specifically large language models (LLMs), vector embeddings, and agentic frameworks — enables a platform that can:
+•	Extract nuanced skills from unstructured data (GitHub repos, portfolio documents, project descriptions)
+•	Perform semantic similarity matching far beyond keyword filtering
+•	Simulate realistic interview environments with adaptive questioning
+•	Provide continuous, personalized coaching at a scale no human coach could achieve
+•	Generate an objective, data-driven Interview Readiness Index (IRI) score
+ 
+3. System Architecture Overview
+
+3.1 High-Level Architecture
+The platform follows a microservices-inspired layered architecture with five primary layers communicating over REST APIs and message queues:
+
+Layer	Technology	Responsibility
+Presentation Layer	Next.js 14 (React)	User interface, dashboards, interview chatbot UI
+API Gateway Layer	FastAPI (Python 3.11+)	REST API, authentication, request routing
+Agent Orchestration Layer	CrewAI + LangChain	Multi-agent task orchestration for profile, matching, coaching
+AI Inference Layer	Gemini 2.5 Flash (Google AI)	LLM reasoning, generation, and evaluation
+Data Layer	PostgreSQL + ChromaDB + Redis	Relational data, vector store, caching
+
+3.2 Subsystem Overview
+The platform is decomposed into three primary subsystems, each implemented as a dedicated CrewAI crew:
+
+Subsystem 1 — Intelligent Profile Engine
+Ingests: CV/resume files, GitHub profiles, portfolio documents, LinkedIn data, project descriptions
+Processes: NLP extraction of skills, tools, domain expertise, project complexity
+Outputs: Structured candidate profile, skill vector, skill gap analysis, auto-generated CV
+Agents: Document Parser Agent, Skill Extractor Agent, Profile Builder Agent, CV Generator Agent
+
+Subsystem 2 — AI Job Matching Engine
+Ingests: Candidate skill vectors, job descriptions from database/scrapers
+Processes: Embedding generation, cosine similarity scoring, company fit analysis
+Outputs: Ranked job recommendations with explainable match reasoning
+Agents: Job Ingestion Agent, Embedding Agent, Matching Agent, Explainability Agent
+
+Subsystem 3 — AI Career Coach
+Ingests: Candidate profile, target job role, historical session data
+Processes: Mock interview simulation, response evaluation, coaching plan generation
+Outputs: Performance feedback, IRI score, personalised learning plans, progress tracking
+Agents: Question Generation Agent, Evaluation Agent, Feedback Agent, Progress Tracking Agent
+
+3.3 Data Flow Diagram
+┌─────────────┐     Upload CV/GitHub/Portfolio
+│   GRADUATE  │──────────────────────────────────────────┐
+└─────────────┘                                           ▼
+                                               ┌────────────────────┐
+                                               │  Profile Engine    │
+                                               │  (CrewAI Crew 1)   │
+                                               └────────┬───────────┘
+                                                        │ Skill Vector
+                                                        ▼
+                                               ┌────────────────────┐
+                                               │  Matching Engine   │
+                                               │  (CrewAI Crew 2)   │
+                                               └────────┬───────────┘
+                                                        │ Job Matches
+                                                        ▼
+                                               ┌────────────────────┐
+                                               │  AI Career Coach   │
+                                               │  (CrewAI Crew 3)   │
+                                               └────────┬───────────┘
+                                                        │ IRI Score + Feedback
+                                                        ▼
+                                               ┌────────────────────┐
+                                               │  Next.js Dashboard │
+                                               └────────────────────┘
+ 
+4. Technology Stack (Free & Open Source)
+
+All technologies selected are either fully open-source or available on a generous free tier suitable for development and initial production deployment.
+
+4.1 Frontend
+Technology	Version	Purpose	Cost
+Next.js	14.x	React framework — SSR, routing, API routes	Free / Open Source
+TypeScript	5.x	Type-safe JavaScript for all frontend code	Free / Open Source
+Tailwind CSS	3.x	Utility-first CSS framework for UI styling	Free / Open Source
+shadcn/ui	Latest	Accessible, pre-built component library	Free / Open Source
+Zustand	4.x	Lightweight state management	Free / Open Source
+React Query (TanStack)	5.x	Server state, caching, API fetching	Free / Open Source
+Socket.io-client	4.x	Real-time WebSocket for interview chat	Free / Open Source
+Recharts	2.x	Progress and analytics charts	Free / Open Source
+
+4.2 Backend
+Technology	Version	Purpose	Cost
+FastAPI	0.111+	High-performance async REST API framework	Free / Open Source
+Python	3.11+	Primary backend language	Free / Open Source
+Uvicorn	Latest	ASGI server for FastAPI	Free / Open Source
+Pydantic v2	2.x	Data validation and serialisation	Free / Open Source
+SQLAlchemy	2.x	ORM for PostgreSQL database access	Free / Open Source
+Alembic	Latest	Database migration management	Free / Open Source
+python-jose	Latest	JWT token generation and verification	Free / Open Source
+bcrypt	Latest	Password hashing	Free / Open Source
+Celery	5.x	Async task queue for long-running AI jobs	Free / Open Source
+Socket.io (python)	Latest	Real-time interview WebSocket server	Free / Open Source
+
+4.3 AI & Agent Layer
+Technology	Version	Purpose	Cost
+CrewAI	Latest	Multi-agent orchestration framework	Free / Open Source
+LangChain	0.2+	LLM chains, memory, document loaders	Free / Open Source
+Google Gemini 2.5 Flash	API	Primary LLM for all generation tasks	Free tier: 1M tokens/day
+google-generativeai	Latest	Python SDK for Gemini API	Free / Open Source
+LangChain-Google-GenAI	Latest	LangChain adapter for Gemini	Free / Open Source
+sentence-transformers	Latest	Local embedding model (all-MiniLM-L6-v2)	Free / Open Source
+PyPDF2 / pdfplumber	Latest	PDF text extraction for CV parsing	Free / Open Source
+python-docx	Latest	Word document parsing	Free / Open Source
+PyGithub	Latest	GitHub API integration for repo analysis	Free tier available
+BeautifulSoup4	Latest	Web scraping for job descriptions	Free / Open Source
+
+4.4 Data Storage
+Technology	Purpose	Free Tier / Hosting
+PostgreSQL 16	Primary relational database — users, profiles, jobs, sessions	Self-hosted (free) or Supabase free tier
+ChromaDB	Vector database for skill and job embeddings	Self-hosted (free, open source)
+Redis 7	Session caching, Celery broker, real-time pub/sub	Self-hosted (free) or Upstash free tier
+MinIO / Cloudflare R2	Object storage for uploaded CV, portfolio files	MinIO self-hosted free / R2 free 10GB
+
+4.5 DevOps & Infrastructure
+Tool	Purpose	Cost
+Docker + Docker Compose	Containerisation of all services	Free / Open Source
+GitHub Actions	CI/CD pipeline	Free for public/student repos
+Nginx	Reverse proxy, SSL termination	Free / Open Source
+Let's Encrypt (Certbot)	Free SSL/TLS certificates	Free
+Railway / Render.com	Cloud hosting (free tier available)	Free starter tier
+ 
+5. Database Schema (PostgreSQL)
+
+5.1 Entity Relationship Overview
+The relational database contains 11 core tables organised into three domains: User & Auth, Career Profile, and Job & Coaching.
+
+users (1) ──────── (1) profiles
+users (1) ──────── (M) documents
+users (1) ──────── (M) coaching_sessions
+profiles (1) ───── (M) skills
+profiles (1) ───── (M) experiences
+profiles (1) ───── (1) skill_vectors
+job_listings (M) ── (M) profiles  [via job_matches]
+coaching_sessions (1) ─ (M) session_messages
+coaching_sessions (1) ─ (1) iri_scores
+
+5.2 Table Definitions
+users
+CREATE TABLE users (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email          VARCHAR(255) UNIQUE NOT NULL,
+  hashed_password VARCHAR(255) NOT NULL,
+  full_name      VARCHAR(255) NOT NULL,
+  role           VARCHAR(50) NOT NULL DEFAULT 'graduate',  -- graduate | recruiter | admin
+  is_active      BOOLEAN DEFAULT TRUE,
+  is_verified    BOOLEAN DEFAULT FALSE,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+profiles
+CREATE TABLE profiles (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  headline       VARCHAR(255),
+  bio            TEXT,
+  github_url     VARCHAR(500),
+  linkedin_url   VARCHAR(500),
+  portfolio_url  VARCHAR(500),
+  education_level VARCHAR(100),         -- BSc | MSc | PhD | HND
+  field_of_study VARCHAR(255),
+  institution    VARCHAR(255),
+  graduation_year INT,
+  target_role    VARCHAR(255),
+  iri_score      FLOAT DEFAULT 0.0,     -- Interview Readiness Index (0-100)
+  profile_completeness FLOAT DEFAULT 0.0,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+skills
+CREATE TABLE skills (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id     UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  name           VARCHAR(255) NOT NULL,
+  category       VARCHAR(100),           -- technical | soft | tool | domain
+  proficiency    VARCHAR(50),             -- beginner | intermediate | advanced | expert
+  source         VARCHAR(100),            -- extracted | self_reported | inferred
+  confidence     FLOAT DEFAULT 1.0,       -- AI confidence score 0.0-1.0
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+documents
+CREATE TABLE documents (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID REFERENCES users(id) ON DELETE CASCADE,
+  type           VARCHAR(100) NOT NULL,   -- cv | portfolio | transcript | project
+  file_name      VARCHAR(500),
+  storage_url    VARCHAR(1000),           -- MinIO/R2 object path
+  extracted_text TEXT,                    -- raw extracted content
+  processing_status VARCHAR(50) DEFAULT 'pending',  -- pending|processing|done|failed
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+skill_vectors
+CREATE TABLE skill_vectors (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id     UUID UNIQUE REFERENCES profiles(id) ON DELETE CASCADE,
+  chroma_doc_id  VARCHAR(255),            -- reference to ChromaDB document
+  embedding_model VARCHAR(255),           -- e.g. all-MiniLM-L6-v2
+  last_updated   TIMESTAMPTZ DEFAULT NOW()
+);
+
+job_listings
+CREATE TABLE job_listings (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title          VARCHAR(255) NOT NULL,
+  company        VARCHAR(255),
+  location       VARCHAR(255),
+  description    TEXT NOT NULL,
+  requirements   TEXT,
+  salary_range   VARCHAR(100),
+  employment_type VARCHAR(100),           -- full-time | part-time | contract | internship
+  source         VARCHAR(100),            -- manual | scraped | partner_api
+  source_url     VARCHAR(1000),
+  chroma_doc_id  VARCHAR(255),            -- reference to ChromaDB embedding
+  is_active      BOOLEAN DEFAULT TRUE,
+  posted_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+job_matches
+CREATE TABLE job_matches (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id     UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  job_id         UUID REFERENCES job_listings(id) ON DELETE CASCADE,
+  similarity_score FLOAT NOT NULL,        -- cosine similarity 0.0-1.0
+  match_reason   TEXT,                    -- AI-generated explanation
+  status         VARCHAR(50) DEFAULT 'suggested',  -- suggested|saved|applied|rejected
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(profile_id, job_id)
+);
+
+coaching_sessions
+CREATE TABLE coaching_sessions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID REFERENCES users(id) ON DELETE CASCADE,
+  target_job_id  UUID REFERENCES job_listings(id) ON DELETE SET NULL,
+  session_type   VARCHAR(100),            -- behavioral | technical | mixed
+  status         VARCHAR(50) DEFAULT 'active',  -- active | completed | paused
+  started_at     TIMESTAMPTZ DEFAULT NOW(),
+  ended_at       TIMESTAMPTZ,
+  overall_score  FLOAT
+);
+
+session_messages
+CREATE TABLE session_messages (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id     UUID REFERENCES coaching_sessions(id) ON DELETE CASCADE,
+  role           VARCHAR(20) NOT NULL,    -- interviewer | candidate
+  content        TEXT NOT NULL,
+  message_type   VARCHAR(50),             -- question | answer | feedback | follow_up
+  evaluation     JSONB,                   -- {score, clarity, accuracy, confidence, notes}
+  sequence_no    INT,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+iri_scores
+CREATE TABLE iri_scores (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID REFERENCES users(id) ON DELETE CASCADE,
+  overall_score  FLOAT NOT NULL,          -- 0-100
+  communication  FLOAT,
+  technical_accuracy FLOAT,
+  confidence     FLOAT,
+  structure      FLOAT,
+  sessions_count INT DEFAULT 0,
+  snapshot_at    TIMESTAMPTZ DEFAULT NOW()
+);
+ 
+6. CrewAI Agent Architecture
+
+The platform uses three CrewAI Crews, each with dedicated agents and tasks. All agents use Gemini 2.5 Flash as their underlying LLM, accessed via the LangChain-Google-GenAI adapter.
+
+6.1 Crew 1 — Intelligent Profile Engine
+Agent Definitions
+
+Agent Name	Role	Goal	Tools Used
+DocumentParserAgent	Document Analyst	Extract raw text and structure from uploaded files (PDF, DOCX, TXT)	PDFTool, DocxTool, FileTool
+SkillExtractorAgent	Skill Intelligence Analyst	Identify all technical skills, tools, domain knowledge, and project complexity from extracted text	GeminiLLMTool, RegexTool
+GitHubAnalysisAgent	Repository Analyst	Analyse GitHub repositories for languages, frameworks, project sophistication, and commit patterns	GitHubAPITool
+ProfileBuilderAgent	Career Profile Architect	Synthesise all extracted data into a structured, scored candidate profile with skill gap analysis	GeminiLLMTool, ChromaDBTool
+CVGeneratorAgent	Professional CV Writer	Generate an ATS-optimised CV from the structured profile data	GeminiLLMTool, DocxGeneratorTool
+
+Task Flow
+Task 1: parse_documents()
+  → Input:  List of uploaded file paths
+  → Output: Dict {filename: extracted_text}
+ 
+Task 2: extract_skills()
+  → Input:  Extracted text + GitHub data
+  → Output: List[SkillModel] with confidence scores
+ 
+Task 3: analyse_github()
+  → Input:  GitHub username / repo URLs
+  → Output: Dict {languages, frameworks, complexity_score}
+ 
+Task 4: build_profile()
+  → Input:  Skills list + GitHub analysis + education data
+  → Output: StructuredProfile + skill_vector (stored in ChromaDB)
+ 
+Task 5: generate_cv()
+  → Input:  StructuredProfile
+  → Output: .docx CV file + plain text version
+
+Sample CrewAI Code Structure
+from crewai import Agent, Task, Crew, Process
+from langchain_google_genai import ChatGoogleGenerativeAI
+ 
+llm = ChatGoogleGenerativeAI(
+    model='gemini-2.5-flash',
+    google_api_key=settings.GEMINI_API_KEY
+)
+ 
+skill_extractor = Agent(
+    role='Skill Intelligence Analyst',
+    goal='Extract all technical and soft skills from candidate documents',
+    backstory='Expert in talent assessment with 10 years in tech recruitment',
+    llm=llm,
+    tools=[document_tool, github_tool],
+    verbose=True
+)
+ 
+extract_skills_task = Task(
+    description='Analyse the provided text and extract skills as a JSON array',
+    expected_output='JSON array of {name, category, proficiency, confidence}',
+    agent=skill_extractor
+)
+ 
+profile_crew = Crew(
+    agents=[parser, skill_extractor, github_analyst, builder, cv_generator],
+    tasks=[parse_task, extract_task, github_task, build_task, cv_task],
+    process=Process.sequential,
+    verbose=True
+)
+
+6.2 Crew 2 — Job Matching Engine
+Agent Definitions
+
+Agent Name	Role	Goal	Tools Used
+JobIngestionAgent	Job Market Analyst	Scrape and normalise job listings from multiple sources into a standard schema	WebScraperTool, JobAPITool
+EmbeddingAgent	Vector Intelligence Specialist	Generate and store semantic embeddings for both job descriptions and candidate profiles	SentenceTransformerTool, ChromaDBTool
+MatchingAgent	Career Match Strategist	Compute cosine similarity between candidate and job vectors; rank top matches	ChromaDBQueryTool, ScoringTool
+ExplainabilityAgent	Recommendation Analyst	Generate human-readable explanations for why each job is a strong or weak match	GeminiLLMTool
+
+Matching Algorithm
+# Embedding generation (Sentence Transformers - local, free)
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('all-MiniLM-L6-v2')
+ 
+# Step 1: Embed candidate skill profile
+profile_text = ' '.join([skill.name for skill in profile.skills])
+profile_vector = model.encode(profile_text)
+ 
+# Step 2: Store in ChromaDB
+collection.add(
+    embeddings=[profile_vector.tolist()],
+    ids=[str(profile.id)],
+    metadatas=[{'type': 'candidate'}]
+)
+ 
+# Step 3: Query for nearest job embeddings
+results = job_collection.query(
+    query_embeddings=[profile_vector.tolist()],
+    n_results=20
+)
+ 
+# Step 4: Re-rank with Gemini for contextual fit
+# ExplainabilityAgent generates match_reason for top 10
+
+6.3 Crew 3 — AI Career Coach
+Agent Definitions
+
+Agent Name	Role	Goal	Tools Used
+QuestionGeneratorAgent	Senior Interviewer	Generate role-specific, adaptive interview questions (behavioral, technical, situational)	GeminiLLMTool, ProfileContextTool
+EvaluationAgent	Performance Analyst	Score candidate responses on clarity, accuracy, confidence, and structure using rubrics	GeminiLLMTool, RubricTool
+FeedbackAgent	Career Development Coach	Produce actionable, specific improvement feedback for each response	GeminiLLMTool, SessionHistoryTool
+IRICalculatorAgent	Readiness Scoring Specialist	Aggregate session scores into an updated Interview Readiness Index score	ScoringAlgorithmTool, DBTool
+LearningPlanAgent	Learning Pathway Designer	Create personalised learning plans targeting identified weak areas	GeminiLLMTool, ResourceDBTool
+
+Interview Session Flow
+1. Candidate selects a target job role
+2. QuestionGeneratorAgent pulls profile + job description
+   → Generates 10-15 adaptive questions (mix: 40% technical, 40% behavioral, 20% situational)
+3. Question delivered via WebSocket to Next.js chat UI
+4. Candidate responds (text or voice-to-text)
+5. EvaluationAgent scores response:
+   {
+     clarity:    0-25,   # Was the answer clear and well-structured?
+     accuracy:   0-25,   # Was the technical content correct?
+     confidence: 0-25,   # Did the candidate demonstrate confidence?
+     relevance:  0-25    # Did the answer address the question?
+   }
+6. FeedbackAgent generates specific feedback
+7. Follow-up question generated if score < 60
+8. Session ends → IRICalculatorAgent updates IRI score
+9. LearningPlanAgent generates updated study recommendations
+
+Interview Readiness Index (IRI) Formula
+IRI = (W1 × Avg_Clarity) + (W2 × Avg_Accuracy) + (W3 × Avg_Confidence) +
+      (W4 × Sessions_Completed_Factor) + (W5 × Improvement_Trend)
+ 
+Where:
+  W1 = 0.25  (Communication clarity weight)
+  W2 = 0.30  (Technical accuracy weight)
+  W3 = 0.20  (Confidence weight)
+  W4 = 0.15  (Session volume factor — rewards practice)
+  W5 = 0.10  (Improvement trend — rewards progress)
+ 
+IRI Range: 0 – 100
+  0  – 40:  Not Ready (intensive coaching recommended)
+ 41  – 65:  Developing (targeted practice areas identified)
+ 66  – 80:  Nearly Ready (minor refinements needed)
+ 81  – 100: Job Ready (apply with confidence)
+ 
+7. REST API Specification (FastAPI)
+
+All endpoints are prefixed with /api/v1. Authentication uses JWT Bearer tokens. WebSocket endpoint uses Socket.io for real-time interview sessions.
+
+7.1 Authentication Endpoints
+Method	Endpoint	Description	Auth Required
+POST	/auth/register	Register new user (graduate or recruiter)	No
+POST	/auth/login	Login and receive JWT access + refresh tokens	No
+POST	/auth/refresh	Refresh access token using refresh token	No
+POST	/auth/logout	Invalidate refresh token	Yes
+GET	/auth/me	Get current authenticated user info	Yes
+POST	/auth/verify-email/{token}	Verify email address via token link	No
+POST	/auth/forgot-password	Send password reset email	No
+POST	/auth/reset-password	Reset password with token	No
+
+7.2 Profile Endpoints
+Method	Endpoint	Description	Auth Required
+GET	/profile/me	Get authenticated user's full profile	Yes
+PUT	/profile/me	Update profile fields	Yes
+POST	/profile/upload-document	Upload CV, portfolio, or project file	Yes
+POST	/profile/analyse	Trigger CrewAI Profile Engine crew (async)	Yes
+GET	/profile/skills	Get extracted skills list with confidence scores	Yes
+GET	/profile/cv/download	Download AI-generated CV as .docx	Yes
+GET	/profile/gap-analysis	Get skill gap analysis vs target role	Yes
+GET	/profile/completeness	Get profile completeness percentage score	Yes
+
+7.3 Job Matching Endpoints
+Method	Endpoint	Description	Auth Required
+GET	/jobs/matches	Get ranked job matches for authenticated user	Yes
+GET	/jobs/matches/{job_id}/explain	Get AI explanation for a specific match	Yes
+GET	/jobs/listings	Browse all active job listings (paginated)	Yes
+GET	/jobs/listings/{id}	Get single job listing details	Yes
+POST	/jobs/listings/{id}/save	Save a job listing to user's shortlist	Yes
+POST	/jobs/listings/{id}/apply	Mark job as applied	Yes
+POST	/jobs/listings	Create new job listing (recruiter only)	Yes (Recruiter)
+GET	/jobs/candidates	Search candidate pool (recruiter only)	Yes (Recruiter)
+
+7.4 Coaching Endpoints
+Method	Endpoint	Description	Auth Required
+POST	/coaching/sessions	Create new coaching session for a target role	Yes
+GET	/coaching/sessions	List all coaching sessions for user	Yes
+GET	/coaching/sessions/{id}	Get full session with messages and scores	Yes
+POST	/coaching/sessions/{id}/end	End active session and compute final scores	Yes
+GET	/coaching/iri	Get current IRI score and history	Yes
+GET	/coaching/learning-plan	Get personalised learning plan	Yes
+GET	/coaching/progress	Get progress tracking data (charts)	Yes
+
+7.5 WebSocket — Interview Chat
+// Namespace: /coaching
+// Connection: ws://api/socket.io/?session_id={id}&token={jwt}
+ 
+// Events emitted BY SERVER:
+socket.on('question', (data) => {
+  // { question: str, type: 'behavioral'|'technical', sequence: int }
+})
+socket.on('feedback', (data) => {
+  // { score: float, strengths: [str], improvements: [str], follow_up: bool }
+})
+socket.on('session_complete', (data) => {
+  // { iri_score: float, summary: str, learning_plan: [...] }
+})
+ 
+// Events emitted BY CLIENT:
+socket.emit('answer', { content: str, session_id: uuid })
+socket.emit('request_hint', { session_id: uuid })
+socket.emit('skip_question', { session_id: uuid })
+ 
+8. Frontend Architecture (Next.js 14)
+
+8.1 Project Structure
+career-platform/
+├── app/                          # Next.js App Router
+│   ├── (auth)/                   # Auth route group (no layout)
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
+│   ├── (dashboard)/              # Protected route group
+│   │   ├── layout.tsx            # Dashboard layout with sidebar
+│   │   ├── profile/page.tsx      # Profile setup & overview
+│   │   ├── jobs/page.tsx         # Job matches & listings
+│   │   ├── coach/page.tsx        # Interview coach landing
+│   │   ├── coach/[sessionId]/    # Live interview session
+│   │   ├── progress/page.tsx     # IRI & progress tracking
+│   │   └── cv/page.tsx           # CV preview & download
+│   └── api/                      # Next.js API routes (proxy/webhooks)
+├── components/
+│   ├── ui/                       # shadcn/ui base components
+│   ├── profile/                  # Profile-specific components
+│   ├── jobs/                     # Job card, match list components
+│   ├── coach/                    # Chat UI, IRI gauge, question cards
+│   └── shared/                   # Navbar, sidebar, file upload
+├── lib/
+│   ├── api/                      # API client functions (React Query)
+│   ├── stores/                   # Zustand state stores
+│   ├── hooks/                    # Custom hooks (useSocket, useIRI, etc.)
+│   └── utils/                    # Helpers and formatters
+├── types/                        # TypeScript interfaces
+└── public/                       # Static assets
+
+8.2 Key Pages & Components
+Page / Component	Description	Key State / Data
+ProfileSetupPage	Multi-step wizard for document upload and profile creation	React Query mutation → POST /profile/upload-document
+JobMatchesPage	Ranked job list with similarity scores and match reasons	React Query → GET /jobs/matches
+InterviewChatPage	Real-time chat interface for mock interview sessions	Zustand session store + Socket.io
+IRIGauge	Animated circular gauge showing current IRI score (0-100)	Props from coaching API
+ProgressDashboard	Recharts line/bar charts for skill and IRI improvement over time	React Query → GET /coaching/progress
+CVPreviewPage	Preview of generated CV with download button	React Query → GET /profile/cv/download
+SkillTagCloud	Visual display of extracted skills with confidence indicators	React Query → GET /profile/skills
+
+8.3 Authentication Flow
+1. User submits login form → POST /api/v1/auth/login
+2. Server returns { access_token, refresh_token, user }
+3. access_token stored in memory (Zustand store)
+4. refresh_token stored in httpOnly cookie
+5. All API calls include Authorization: Bearer {access_token}
+6. On 401 response → auto-refresh via POST /auth/refresh
+7. On refresh failure → redirect to /login
+ 
+// Next.js middleware (middleware.ts) protects /dashboard routes:
+export function middleware(request: NextRequest) {
+  const token = request.cookies.get('refresh_token');
+  if (!token && request.nextUrl.pathname.startsWith('/dashboard')) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+}
+ 
+9. Backend Architecture (FastAPI)
+
+9.1 Project Structure
+backend/
+├── app/
+│   ├── main.py                   # FastAPI app initialisation
+│   ├── core/
+│   │   ├── config.py             # Settings (Pydantic BaseSettings)
+│   │   ├── security.py           # JWT, password hashing
+│   │   └── database.py           # SQLAlchemy async session factory
+│   ├── api/v1/
+│   │   ├── routes/               # One file per domain
+│   │   │   ├── auth.py
+│   │   │   ├── profile.py
+│   │   │   ├── jobs.py
+│   │   │   └── coaching.py
+│   │   └── dependencies.py       # get_current_user, get_db, etc.
+│   ├── models/                   # SQLAlchemy ORM models
+│   ├── schemas/                  # Pydantic request/response schemas
+│   ├── services/                 # Business logic layer
+│   │   ├── profile_service.py
+│   │   ├── matching_service.py
+│   │   └── coaching_service.py
+│   ├── agents/                   # CrewAI crew definitions
+│   │   ├── profile_crew.py
+│   │   ├── matching_crew.py
+│   │   └── coaching_crew.py
+│   ├── tools/                    # Custom CrewAI tools
+│   │   ├── document_tools.py
+│   │   ├── github_tools.py
+│   │   ├── chroma_tools.py
+│   │   └── scoring_tools.py
+│   ├── tasks/                    # Celery background tasks
+│   │   ├── analyse_profile.py
+│   │   └── run_matching.py
+│   └── socket/                   # Socket.io event handlers
+│       └── coaching_socket.py
+├── alembic/                      # Database migrations
+├── tests/                        # pytest test suite
+├── Dockerfile
+└── requirements.txt
+
+9.2 Async Task Queue (Celery)
+Long-running AI tasks (profile analysis, job matching) are offloaded to Celery workers to prevent API timeout. Redis serves as both the message broker and result backend.
+
+# tasks/analyse_profile.py
+from celery import shared_task
+from app.agents.profile_crew import run_profile_crew
+ 
+@shared_task(bind=True, max_retries=3)
+def analyse_profile_task(self, user_id: str, document_ids: list):
+    try:
+        result = run_profile_crew(user_id, document_ids)
+        return result
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60)
+ 
+# API endpoint triggers task:
+# POST /profile/analyse
+task = analyse_profile_task.delay(user.id, document_ids)
+return {'task_id': task.id, 'status': 'processing'}
+ 
+# Client polls: GET /tasks/{task_id}/status
+# Returns: {status: 'pending'|'processing'|'done'|'failed', result: {...}}
+ 
+10. Vector Database Design (ChromaDB)
+
+ChromaDB is used as the local, open-source vector store for semantic similarity operations. It runs as a containerised service alongside the backend.
+
+10.1 Collections
+Collection Name	Document Type	Embedding Source	Metadata Fields
+candidate_profiles	Skill profile text per candidate	all-MiniLM-L6-v2	user_id, profile_id, updated_at
+job_listings	Full job description + requirements	all-MiniLM-L6-v2	job_id, company, title, employment_type, is_active
+session_responses	Candidate interview answers	all-MiniLM-L6-v2	session_id, user_id, question_type, score
+
+10.2 Query Pattern — Job Matching
+import chromadb
+ 
+client = chromadb.HttpClient(host='chromadb', port=8000)
+jobs_collection = client.get_collection('job_listings')
+ 
+# Find top 20 jobs for a candidate
+results = jobs_collection.query(
+    query_embeddings=[candidate_vector],
+    n_results=20,
+    where={'is_active': True},
+    include=['metadatas', 'distances', 'documents']
+)
+ 
+# distances = cosine distances (lower = more similar)
+# similarity_score = 1 - distance (higher = better match)
+matches = [
+    {
+        'job_id': meta['job_id'],
+        'similarity_score': 1 - dist,
+        'title': meta['title']
+    }
+    for meta, dist in zip(results['metadatas'][0], results['distances'][0])
+]
+ 
+11. MVP Implementation Plan
+
+The MVP is divided into 5 phases with recommended timelines for a solo developer. Each phase delivers a testable increment of functionality.
+
+Phase	Duration	Deliverable	Key Components
+Phase 1 — Foundation	Week 1-2	Project scaffolding, auth, database	FastAPI + PostgreSQL + Next.js setup, JWT auth, user registration/login
+Phase 2 — Profile Engine	Week 3-5	File upload + AI profile extraction	Document upload, CrewAI Crew 1, skill extraction, ChromaDB integration
+Phase 3 — Job Matching	Week 6-7	Semantic job matching	Job listings CRUD, embedding pipeline, ChromaDB query, match ranking
+Phase 4 — Career Coach	Week 8-11	Live interview simulator	WebSocket chat, CrewAI Crew 3, question generation, scoring, IRI
+Phase 5 — Polish & Deploy	Week 12-13	Production-ready platform	Celery queues, Nginx, Docker Compose, CI/CD, testing, final UI polish
+
+11.1 Phase 1 Checklist — Foundation
+1.	Initialise Next.js 14 project with TypeScript + Tailwind CSS + shadcn/ui
+2.	Initialise FastAPI project with the directory structure defined in Section 9.1
+3.	Set up PostgreSQL with Docker, run Alembic migrations for users table
+4.	Implement POST /auth/register and POST /auth/login with JWT
+5.	Implement Next.js login and register pages with form validation
+6.	Configure Docker Compose with: postgres, redis, backend, frontend services
+
+11.2 Phase 2 Checklist — Profile Engine
+7.	Implement file upload endpoint with MinIO/local storage
+8.	Install CrewAI, LangChain, google-generativeai, sentence-transformers
+9.	Build DocumentParserAgent with PDF and DOCX tools
+10.	Build SkillExtractorAgent with Gemini 2.5 Flash via LangChain
+11.	Build ProfileBuilderAgent that stores skill vectors in ChromaDB
+12.	Build CVGeneratorAgent outputting a formatted DOCX
+13.	Add Celery task for async profile analysis
+14.	Build Profile Setup wizard in Next.js (multi-step form)
+
+11.3 Phase 3 Checklist — Job Matching
+15.	Seed database with 50+ sample job listings
+16.	Build job embedding pipeline (EmbeddingAgent stores all jobs in ChromaDB)
+17.	Implement GET /jobs/matches endpoint with ChromaDB cosine similarity query
+18.	Build ExplainabilityAgent to generate match reasons using Gemini
+19.	Build Job Matches page in Next.js with score badges and reasoning cards
+
+11.4 Phase 4 Checklist — Career Coach
+20.	Set up Socket.io server on FastAPI backend
+21.	Build interview chat UI with streaming message display in Next.js
+22.	Implement QuestionGeneratorAgent (role-specific, adaptive)
+23.	Implement EvaluationAgent with 4-dimension scoring rubric
+24.	Implement FeedbackAgent with specific, actionable advice
+25.	Implement IRICalculatorAgent and IRI score persistence
+26.	Build IRI gauge component and progress charts in Next.js
+
+11.5 Phase 5 Checklist — Deployment
+27.	Write Dockerfile for backend and frontend
+28.	Write complete docker-compose.yml with all 6 services
+29.	Configure Nginx reverse proxy with SSL via Let's Encrypt
+30.	Set up GitHub Actions CI/CD pipeline
+31.	Write pytest test suite (minimum 70% coverage)
+32.	Deploy to Railway or Render.com free tier
+ 
+12. Deployment Configuration
+
+12.1 Docker Compose (docker-compose.yml)
+version: '3.9'
+services:
+ 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: career_platform
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports: ['5432:5432']
+ 
+  redis:
+    image: redis:7-alpine
+    ports: ['6379:6379']
+ 
+  chromadb:
+    image: chromadb/chroma:latest
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports: ['8001:8000']
+ 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports: ['9000:9000', '9001:9001']
+ 
+  backend:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres/career_platform
+      REDIS_URL: redis://redis:6379
+      CHROMA_HOST: chromadb
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on: [postgres, redis, chromadb, minio]
+    ports: ['8000:8000']
+ 
+  celery_worker:
+    build: ./backend
+    command: celery -A app.tasks worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres/career_platform
+      REDIS_URL: redis://redis:6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on: [backend, redis]
+ 
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000/api/v1
+      NEXT_PUBLIC_SOCKET_URL: http://backend:8000
+    ports: ['3000:3000']
+ 
+volumes:
+  postgres_data:
+  chroma_data:
+  minio_data:
+
+12.2 Environment Variables (.env)
+# Database
+DB_USER=career_user
+DB_PASSWORD=strong_password_here
+ 
+# Redis
+REDIS_URL=redis://redis:6379
+ 
+# Google AI
+GEMINI_API_KEY=your_gemini_api_key_here
+ 
+# JWT
+SECRET_KEY=your_256_bit_secret_key_here
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+ 
+# MinIO
+MINIO_USER=minioadmin
+MINIO_PASSWORD=minioadmin
+ 
+# GitHub API (optional, for repo analysis)
+GITHUB_ACCESS_TOKEN=your_github_token
+ 
+13. Security Considerations
+
+Risk	Mitigation Strategy	Implementation
+Unauthorized API access	JWT Bearer token authentication	python-jose, bcrypt, short-lived access tokens (30 min)
+SQL Injection	ORM-based queries only	SQLAlchemy with parameterised queries — no raw SQL
+File upload abuse	File type validation + size limits	python-magic for MIME type check, 10MB max per file
+Sensitive data exposure	Environment variables for secrets	.env not committed to Git, Docker secrets in production
+CORS misconfiguration	Strict CORS origin whitelist	FastAPI CORSMiddleware with explicit allow_origins list
+Rate limiting abuse	Request rate limiting per user	slowapi (FastAPI rate limiter) on auth and AI endpoints
+API key leakage	Server-side only key usage	Gemini API key never sent to frontend, only used in backend
+ 
+14. Monetisation Strategy
+
+Tier	Target	Features	Price (Suggested)
+Free	Individual graduates	5 job matches, 3 coaching sessions/month, basic profile	XAF 0
+Premium Graduate	Active job seekers	Unlimited matches, unlimited coaching, IRI tracking, CV download	XAF 5,000/month
+Recruiter	HR teams, companies	Access candidate pool, filter by IRI/skills, post unlimited jobs	XAF 25,000/month
+Institutional	Universities, training centres	Bulk graduate accounts, analytics dashboard, integration API	Custom pricing
+ 
+15. Testing Strategy
+
+Test Type	Tool	What Is Tested	Target Coverage
+Unit Tests	pytest + pytest-asyncio	Individual service functions, agent tools, scoring algorithms	80%+
+Integration Tests	pytest + httpx AsyncClient	Full API endpoint request/response cycles with test DB	70%+
+Agent Tests	CrewAI test harness + mock LLM	Agent task completion with deterministic mock responses	Key flows
+Frontend Tests	Jest + React Testing Library	Component rendering, user interactions, form validation	60%+
+E2E Tests	Playwright	Full user journeys: register → profile → match → interview	Critical paths
+Load Tests	Locust	API performance under concurrent user load	100 concurrent users
+ 
+16. Future Enhancements
+
+Enhancement	Description	Priority
+Voice Interview Mode	Speech-to-text input using OpenAI Whisper (free, open-source) for voice-based interviews	High
+Video Analysis	Facial expression and tone analysis via OpenCV + free CV models for non-verbal coaching	Medium
+Real-time Job Scraping	Automated scraper for Cameroonian job boards and LinkedIn using Scrapy	High
+Mobile App	React Native app sharing business logic with the web frontend	Medium
+Learning Platform Integration	Link skill gaps to free resources on Coursera, YouTube, freeCodeCamp	High
+Multi-language Support	French language support for Francophone Cameroon users	High
+Employer Dashboard	Analytics for recruiters on candidate pipelines and IRI distributions	Medium
+AI CV Optimiser	Automatically tailor CV wording for specific job descriptions (ATS optimisation)	Medium
+ 
+Appendix A — Free Resource Links
+
+Resource	URL	Purpose
+Google AI Studio	aistudio.google.com	Get free Gemini 2.5 Flash API key
+CrewAI Documentation	docs.crewai.com	Agent framework reference
+LangChain Docs	python.langchain.com	LLM chain and tool documentation
+ChromaDB Docs	docs.trychroma.com	Vector database setup and queries
+FastAPI Docs	fastapi.tiangolo.com	Backend API framework reference
+Next.js Docs	nextjs.org/docs	Frontend framework reference
+shadcn/ui	ui.shadcn.com	Free UI component library
+Railway	railway.app	Free cloud hosting (starter tier)
+Sentence Transformers	sbert.net	Free local embedding models
+
+Appendix B — Gemini API Setup
+
+33.	Go to https://aistudio.google.com and sign in with a Google account
+34.	Click 'Get API Key' and create a new key
+35.	Copy the API key and add it to your .env file as GEMINI_API_KEY
+36.	Install the SDK: pip install google-generativeai langchain-google-genai
+
+# Test your Gemini connection:
+import google.generativeai as genai
+genai.configure(api_key='YOUR_API_KEY')
+model = genai.GenerativeModel('gemini-2.5-flash')
+response = model.generate_content('Hello, Gemini!')
+print(response.text)  # Should print a greeting
+
+
+End of Documentation
