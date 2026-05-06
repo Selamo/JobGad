@@ -214,6 +214,8 @@ export const admin = {
   getHRProfiles: (status?: string) => request(`/admin/hr-profiles${status ? `?status_filter=${status}` : ''}`),
   approveHR: (id: string) => request(`/admin/hr-profiles/${id}/approve`, { method: 'PATCH' }),
   rejectHR: (id: string, reason: string) => request(`/admin/hr-profiles/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
+  registerCompany: (data: object) => request('/admin/companies', { method: 'POST', body: JSON.stringify(data) }),
+  registerHRProfile: (data: object) => request('/admin/hr-profiles', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 export interface User { id: string; email: string; full_name: string; role: string; is_active: boolean; is_verified: boolean; created_at: string }

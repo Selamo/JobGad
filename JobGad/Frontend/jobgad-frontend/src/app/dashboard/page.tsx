@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { ScoreRing, ProgressBar, StatCard, Badge, SkeletonCard, EmptyState } from '@/components/ui'
-import { dashboard, type GraduateDashboard, type HRDashboard } from '@/lib/api'
+import { dashboard, admin, type GraduateDashboard, type HRDashboard } from '@/lib/api'
 import { ArrowRight, Briefcase, Mic, ChevronRight, TrendingUp, AlertCircle, Building2, ShieldCheck, Users } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -13,14 +13,28 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
 
-  useEffect(() => {
+ useEffect(() => {
     if (!user) return
-    dashboard.me()
-      .then(setData)
-      .catch(() => setError('Could not load dashboard. Please refresh.'))
-      .finally(() => setLoading(false))
+    const fetchData = async () => {
+      try {
+        if (user.role === 'superadmin' || user.role === 'admin') {
+          const res = await admin.dashboard()
+          setData(res)
+        } else if (user.role === 'hr') {
+          const res = await dashboard.hr()
+          setData(res)
+        } else {
+          const res = await dashboard.graduate()
+          setData(res)
+        }
+      } catch {
+        setError('Could not load dashboard. Please refresh.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
   }, [user])
-
   if (loading) {
     return (
       <AppShell title="Dashboard">
