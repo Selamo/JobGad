@@ -423,4 +423,27 @@ export default function JobsPage() {
               {explanation.skill_overlap?.missing?.length > 0 && (
                 <div>
                   <p className="label-caps" style={{ marginBottom: 8 }}>
-                    Skills to develop ({explan
+                    Skills to develop ({explanation.skill_overlap.missing.length})
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {explanation.skill_overlap.missing.map(s => (
+                      <span key={s} style={{ background: 'var(--red-dim)', color: 'var(--red)', fontSize: 12, padding: '3px 9px', borderRadius: 5, fontWeight: 500 }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={() => setShowExplain(false)}>Close</button>
+          {explanation && (
+            <button className="btn btn-primary" onClick={() => { setShowExplain(false); openApply(explanation.job) }}>
+              Apply for this job
+            </button>
+          )}
+        </div>
+      </Modal>
+    </AppShell>
+  )
+}
