@@ -59,50 +59,93 @@ export default function DashboardPage() {
 
   // ── SUPERADMIN DASHBOARD ──────────────────────────────────────────────────
   if (user?.role === 'superadmin' || user?.role === 'admin') {
+    const totalUsers       = data?.users?.total ?? 0
+    const totalCompanies   = data?.companies?.total ?? 0
+    const totalJobs        = data?.jobs?.active ?? 0
+    const totalApps        = data?.applications?.total ?? 0
+    const pendingCompanies = data?.companies?.pending_approval ?? 0
+    const pendingHR        = data?.hr_profiles?.pending_approval ?? 0
+
     return (
       <AppShell
         title={`Welcome, ${user?.full_name?.split(' ')[0] ?? 'Admin'}`}
         subtitle="Platform administration overview"
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
-          <StatCard label="Total Users"     value={data?.total_users        ?? '—'} color="var(--blue-bright)" />
-          <StatCard label="Total Companies" value={data?.total_companies    ?? '—'} />
-          <StatCard label="Total Jobs"      value={data?.total_jobs         ?? '—'} color="var(--cyan-bright)" />
-          <StatCard label="Applications"   value={data?.total_applications ?? '—'} />
+          <StatCard label="Total Users"     value={totalUsers}     color="var(--blue-bright)" />
+          <StatCard label="Total Companies" value={totalCompanies} />
+          <StatCard label="Active Jobs"     value={totalJobs}      color="var(--cyan-bright)" />
+          <StatCard label="Applications"    value={totalApps} />
+          <StatCard label="Pending Companies" value={pendingCompanies} color={pendingCompanies > 0 ? 'var(--yellow)' : undefined} />
+          <StatCard label="Pending HR"      value={pendingHR}      color={pendingHR > 0 ? 'var(--yellow)' : undefined} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Users by role breakdown */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <Building2 size={16} style={{ color: 'var(--yellow)' }} />
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Pending Companies</h3>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Users by Role</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {Object.entries(data?.users?.by_role ?? {}).map(([role, count]) => (
+                <div key={role} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{role}</span>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 500, color: 'var(--blue-bright)' }}>{count as number}</span>
+                </div>
+              ))}
             </div>
-            <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 40, fontWeight: 500, color: 'var(--yellow)', marginBottom: 8 }}>
-              {data?.pending_companies ?? 0}
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Companies awaiting approval
-            </p>
-            <Link href="/admin" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
-              Review companies <ChevronRight size={13} />
-            </Link>
           </div>
 
           <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <ShieldCheck size={16} style={{ color: 'var(--purple)' }} />
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Pending HR Accounts</h3>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Platform Overview</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { label: 'Approved Companies', value: data?.companies?.by_status?.approved ?? 0, color: 'var(--green)' },
+                { label: 'Pending Companies',  value: pendingCompanies, color: pendingCompanies > 0 ? 'var(--yellow)' : 'var(--text-primary)' },
+                { label: 'Active Jobs',        value: totalJobs, color: 'var(--cyan-bright)' },
+                { label: 'Total Applications', value: totalApps, color: 'var(--text-primary)' },
+              ].map(s => (
+                <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 500, color: s.color }}>{s.value}</span>
+                </div>
+              ))}
             </div>
-            <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 40, fontWeight: 500, color: 'var(--purple)', marginBottom: 8 }}>
-              {data?.pending_hr ?? 0}
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              HR accounts awaiting approval
-            </p>
-            <Link href="/admin" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
-              Review HR accounts <ChevronRight size={13} />
-            </Link>
           </div>
+        </div>
+
+        {/* Pending alerts */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {pendingCompanies > 0 && (
+            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '13px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Building2 size={15} style={{ color: 'var(--yellow)' }} />
+                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                  <strong>{pendingCompanies}</strong> company registration{pendingCompanies > 1 ? 's' : ''} awaiting approval
+                </span>
+              </div>
+              <Link href="/admin" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
+                Review <ChevronRight size={13} />
+              </Link>
+            </div>
+          )}
+          {pendingHR > 0 && (
+            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '13px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <ShieldCheck size={15} style={{ color: 'var(--yellow)' }} />
+                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+                  <strong>{pendingHR}</strong> HR account{pendingHR > 1 ? 's' : ''} awaiting approval
+                </span>
+              </div>
+              <Link href="/admin" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none' }}>
+                Review <ChevronRight size={13} />
+              </Link>
+            </div>
+          )}
+          {pendingCompanies === 0 && pendingHR === 0 && (
+            <div style={{ textAlign: 'center', padding: '32px 24px' }}>
+              <CheckCircle2 size={32} style={{ color: 'var(--green)', margin: '0 auto 12px' }} />
+              <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>No pending approvals — everything is up to date.</p>
+            </div>
+          )}
         </div>
       </AppShell>
     )
