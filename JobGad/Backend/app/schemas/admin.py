@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -48,9 +48,12 @@ class HRProfileResponse(BaseModel):
     rejection_reason: Optional[str] = None
     created_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
+    user: Optional[dict] = None
+    company: Optional[dict] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+   
 
 
 class ApprovalAction(BaseModel):

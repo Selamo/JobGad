@@ -309,7 +309,8 @@ async def get_all_hr_profiles(
         stmt = stmt.where(HRProfile.status == status_filter)
 
     stmt = stmt.order_by(HRProfile.created_at.desc())
-    result = awai
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 async def get_admin_dashboard(
     db: AsyncSession,
