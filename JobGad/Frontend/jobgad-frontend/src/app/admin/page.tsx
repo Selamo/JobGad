@@ -41,10 +41,23 @@ export default function AdminPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [s, c, h] = await Promise.allSettled([admin.dashboard(), admin.getCompanies(), admin.getHRProfiles()])
+      const [s, c, h] = await Promise.allSettled([
+        admin.dashboard(),
+        admin.getCompanies(),
+        admin.getHRProfiles(),
+      ])
       if (s.status === 'fulfilled') setStats(s.value as DashboardStats)
-      if (c.status === 'fulfilled') setCompanies(Array.isArray(c.value) ? c.value as Company[] : [])
-      if (h.status === 'fulfilled') setHRProfiles(Array.isArray(h.value) ? h.value as HRProfile[] : [])
+      if (c.status === 'fulfilled') {
+        const val = c.value as any
+        setCompanies(Array.isArray(val) ? val : val?.companies ?? [])
+      }
+      if (h.status === 'fulfilled') {
+        const val = h.value as any
+        setHRProfiles(Array.isArray(val) ? val : val?.hr_profiles ?? [])
+      } else {
+        // HR endpoint has a backend error — show empty for now
+        setHRProfiles([])
+      }
     } finally { setLoading(false) }
   }
 
