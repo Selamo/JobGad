@@ -140,7 +140,7 @@ async def run_job_matching(
     matches_stmt = (
         select(JobMatch)
         .where(JobMatch.profile_id == profile.id, JobMatch.job_id.in_(job_ids))
-        .options(selectinload(JobMatch.job))
+        .options(selectinload(JobMatch.job).selectinload(JobListing.company))
         .order_by(JobMatch.similarity_score.desc())
     )
     matches_result = await db.execute(matches_stmt)
@@ -163,7 +163,7 @@ async def get_my_matches(
     stmt = (
         select(JobMatch)
         .where(JobMatch.profile_id == profile.id)
-        .options(selectinload(JobMatch.job))
+        .options(selectinload(JobMatch.job).selectinload(JobListing.company))
         .order_by(JobMatch.similarity_score.desc())
     )
 
@@ -191,7 +191,7 @@ async def update_match_status(
     stmt = (
         select(JobMatch)
         .where(JobMatch.id == match_id, JobMatch.profile_id == profile.id)
-        .options(selectinload(JobMatch.job))
+        .options(selectinload(JobMatch.job).selectinload(JobListing.company))
     )
     result = await db.execute(stmt)
     match = result.scalar_one_or_none()
@@ -227,7 +227,7 @@ async def explain_match(
     stmt = (
         select(JobMatch)
         .where(JobMatch.profile_id == profile.id, JobMatch.job_id == job_id)
-        .options(selectinload(JobMatch.job))
+        .options(selectinload(JobMatch.job).selectinload(JobListing.company))
     )
     result = await db.execute(stmt)
     match = result.scalar_one_or_none()
