@@ -58,6 +58,26 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class CORSPreflightMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        if request.method == "OPTIONS":
+            from starlette.responses import Response
+            response = Response()
+            response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Max-Age"] = "600"
+            return response
+        response = await call_next(request)
+        return response
+
+app.add_middleware(CORSPreflightMiddleware)
+
 # ─── Rate Limiter ─────────────────────────────────────────────────────────────
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
@@ -65,12 +85,18 @@ app.add_middleware(SlowAPIMiddleware)
 # ─── CORS Middleware ──────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://job-gad.vercel.app",
+        "https://*.vercel.app",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
-
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 app.add_exception_handler(
     RequestValidationError,
