@@ -59,21 +59,15 @@ export default function RegisterPage() {
       const tokens = await auth.login(form.email, form.password)
       saveTokens(tokens.access_token, tokens.refresh_token)
 
-      // 3. Register company
-      const companyRes: any = await admin.registerCompany({
+      // 3. Register company only
+      // HR profile will be created after superadmin approves the company
+      await admin.registerCompany({
         name:        company.name,
         industry:    company.industry,
         city:        company.city,
         country:     company.country,
         website:     company.website || undefined,
         description: `${company.name} — ${company.industry}`,
-      })
-
-      // 4. Register HR profile linked to company
-      await admin.registerHRProfile({
-        company_id: companyRes.id,
-        job_title:  hrTitle || 'HR Manager',
-        is_company_admin: true,
       })
 
       router.push('/dashboard')

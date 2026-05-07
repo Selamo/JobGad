@@ -28,8 +28,13 @@ export default function DashboardPage() {
           const res = await admin.dashboard()
           setData(res)
         } else if (user.role === 'hr') {
-          const res = await dashboard.hr()
-          setData(res)
+          try {
+            const res = await dashboard.hr()
+            setData(res)
+          } catch (hrErr: any) {
+            // HR profile not created yet — show pending screen
+            setData({ error: true, message: hrErr.message })
+          }
         } else {
           const res = await dashboard.graduate()
           setData(res)
@@ -193,6 +198,41 @@ export default function DashboardPage() {
 
   // ── HR DASHBOARD ──────────────────────────────────────────────────────────
   if (user?.role === 'hr') {
+    // Backend returns error if HR profile not created yet
+    if (!data || (data as any)?.error || (data as any)?.message) {
+      return (
+        <AppShell
+          title={`Welcome, ${user?.full_name?.split(' ')[0] ?? 'there'}`}
+          subtitle="Your account is being reviewed"
+        >
+          <div className="card" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center', padding: 40 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <Building2 size={24} style={{ color: 'var(--yellow)' }} />
+            </div>
+            <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
+              Awaiting Admin Approval
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 24 }}>
+              Your company registration has been submitted and is currently under review by our admin team. You will be able to post jobs and manage applications once your company is approved.
+            </p>
+            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', textAlign: 'left' }}>
+              <p className="label-caps" style={{ marginBottom: 8 }}>What happens next</p>
+              {[
+                'Admin reviews your company registration',
+                'You receive an email confirmation once approved',
+                'You can then start posting jobs and reviewing applications',
+              ].map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--yellow)', flexShrink: 0 }}>0{i + 1}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </AppShell>
+      )
+    }
+
     const d = data as HRDashboard
     return (
       <AppShell
@@ -219,7 +259,7 @@ export default function DashboardPage() {
             {(d?.company?.status === 'pending' || !d?.company?.status) && (
               <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8 }}>
                 <p style={{ fontSize: 12, color: 'var(--yellow)', lineHeight: 1.5 }}>
-                  Your company is awaiting admin approval. You will be able to post jobs once approved.
+                  Awaiting admin approval before you can post jobs.
                 </p>
               </div>
             )}
@@ -258,7 +298,6 @@ export default function DashboardPage() {
       </AppShell>
     )
   }
-
   // ── GRADUATE DASHBOARD ────────────────────────────────────────────────────
   const d = data as GraduateDashboard
   const iri          = d?.coaching?.current_iri ?? 0
