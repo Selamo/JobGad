@@ -36,10 +36,17 @@ export default function ProfilePage() {
         profile.getSkills(),
         profile.getDocuments(),
       ])
-      if (p.status === 'fulfilled') { setProf(p.value); setForm(p.value) }
+      if (p.status === 'fulfilled' && p.value) {
+        setProf(p.value)
+        setForm(p.value)
+      } else {
+        // Profile does not exist yet — show empty form
+        setProf(null)
+        setForm({})
+      }
       if (c.status === 'fulfilled') setComp(c.value.profile_completeness)
-      if (s.status === 'fulfilled') setSkills(s.value)
-      if (d.status === 'fulfilled') setDocs(d.value)
+      if (s.status === 'fulfilled') setSkills(Array.isArray(s.value) ? s.value : [])
+      if (d.status === 'fulfilled') setDocs(Array.isArray(d.value) ? d.value : [])
     } finally {
       setLoading(false)
     }
