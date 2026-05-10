@@ -101,7 +101,10 @@ export const profile = {
   create: (data: Partial<Profile>) => request('/profile/me', { method: 'POST', body: JSON.stringify(data) }),
   update: (data: Partial<Profile>) => request('/profile/me', { method: 'PUT', body: JSON.stringify(data) }),
   delete: () => request('/profile/me', { method: 'DELETE' }),
-  completeness: () => request<{ profile_completeness: number; message: string }>('/profile/me/completeness'),
+  completeness: async () => {
+    const res = await request<any>('/profile/me/completeness')
+    return typeof res === 'number' ? res : (res?.profile_completeness ?? 0)
+  },
   getSkills: () => request<Skill[]>('/profile/me/skills'),
   addSkill: (data: { name: string; category: string; proficiency: string }) =>
     request('/profile/me/skills', { method: 'POST', body: JSON.stringify(data) }),
@@ -110,7 +113,10 @@ export const profile = {
   learningRoadmap: () => request('/profile/me/learning-roadmap'),
   cvReview: () => request('/profile/me/cv-review'),
   analyzeSocials: () => request('/profile/me/analyze-socials', { method: 'POST' }),
-  getDocuments: () => request<Document[]>('/profile/documents'),
+  getDocuments: async () => {
+    const res = await request<any>('/profile/documents')
+    return Array.isArray(res) ? res : (res?.documents ?? [])
+  },
   uploadDocument: (file: File, docType: string) => {
     const form = new FormData()
     form.append('file', file)

@@ -44,7 +44,10 @@ export default function ProfilePage() {
         setProf(null)
         setForm({})
       }
-      if (c.status === 'fulfilled') setComp(c.value.profile_completeness)
+      if (c.status === 'fulfilled') {
+        const val = c.value
+        setComp(typeof val === 'number' ? val : (val?.profile_completeness ?? 0))
+      }
       if (s.status === 'fulfilled') setSkills(Array.isArray(s.value) ? s.value : [])
       if (d.status === 'fulfilled') setDocs(Array.isArray(d.value) ? d.value : [])
     } finally {
