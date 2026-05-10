@@ -113,14 +113,42 @@ async def approve_company(
     await db.commit()
     await db.refresh(company)
 
-    # Notify the company creator
+    # Auto-create and approve HR profile for the company creator
     if company.created_by:
+        # Check if HR profile already exists for this user
+        hr_stmt = select(HRProfile).where(HRProfile.user_id == company.created_by)
+        hr_result = await db.execute(hr_stmt)
+        existing_hr = hr_result.scalar_one_or_none()
+
+        if not existing_hr:
+            # Create HR profile automatically
+            hr_profile = HRProfile(
+                user_id=company.created_by,
+                company_id=company.id,
+                job_title="HR Manager",
+                is_company_admin=True,
+                status="approved",
+                approved_by=user.id,
+                approved_at=datetime.now(timezone.utc),
+            )
+            db.add(hr_profile)
+
+            # Update the user role to hr
+            creator_stmt = select(User).where(User.id == company.created_by)
+            creator_result = await db.execute(creator_stmt)
+            creator = creator_result.scalar_one_or_none()
+            if creator:
+                creator.role = "hr"
+
+            await db.commit()
+
+        # Notify the company creator
         await _create_notification(
             db=db,
             user_id=company.created_by,
             type="company_approved",
             title="Company Approved!",
-            message=f"Your company '{company.name}' has been approved.",
+            message=f"Your company '{company.name}' has been approved. You can now post jobs.",
         )
 
         # Send email
