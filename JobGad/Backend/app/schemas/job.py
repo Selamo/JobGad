@@ -45,7 +45,6 @@ class JobUpdate(BaseModel):
             raise ValueError(f"employment_type must be one of: {VALID_EMPLOYMENT_TYPES}")
         return v
 
-
 class JobResponse(BaseModel):
     id: UUID
     title: str
@@ -58,6 +57,17 @@ class JobResponse(BaseModel):
     source_url: Optional[str] = None
     is_active: bool
     posted_at: Optional[datetime] = None
+
+    @field_validator('company', mode='before')
+    @classmethod
+    def extract_company_name(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return v
+        if hasattr(v, 'name'):
+            return v.name
+        return str(v)
 
     class Config:
         from_attributes = True
