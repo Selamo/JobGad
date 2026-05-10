@@ -30,12 +30,21 @@ export default function DashboardPage() {
         } else if (user.role === 'hr') {
           try {
             const res = await dashboard.hr()
-            setData(res)
+            // If backend returns error object, show pending screen
+            if (res && (res as any).error) {
+              setData({ error: true, message: (res as any).message })
+            } else {
+              setData(res)
+            }
           } catch (hrErr: any) {
-            // HR profile not created yet — show pending screen
-            setData({ error: true, message: hrErr.message })
+            // Check if it is a 404 meaning HR profile not yet created
+            if (hrErr.message?.includes('404') || hrErr.message?.includes('not found') || hrErr.message?.includes('HR profile')) {
+              setData({ error: true, message: 'pending' })
+            } else {
+              setData({ error: true, message: hrErr.message })
+            }
           }
-        } else {
+} else {
           const res = await dashboard.graduate()
           setData(res)
         }
@@ -199,103 +208,110 @@ export default function DashboardPage() {
   // ── HR DASHBOARD ──────────────────────────────────────────────────────────
   if (user?.role === 'hr') {
     // Backend returns error if HR profile not created yet
-    if (!data || (data as any)?.error || (data as any)?.message) {
-      return (
-        <AppShell
-          title={`Welcome, ${user?.full_name?.split(' ')[0] ?? 'there'}`}
-          subtitle="Your account is being reviewed"
-        >
-          <div className="card" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center', padding: 40 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-              <Building2 size={24} style={{ color: 'var(--yellow)' }} />
-            </div>
-            <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
-              Awaiting Admin Approval
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 24 }}>
-              Your company registration has been submitted and is currently under review by our admin team. You will be able to post jobs and manage applications once your company is approved.
-            </p>
-            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', textAlign: 'left' }}>
-              <p className="label-caps" style={{ marginBottom: 8 }}>What happens next</p>
-              {[
-                'Admin reviews your company registration',
-                'You receive an email confirmation once approved',
-                'You can then start posting jobs and reviewing applications',
-              ].map((s, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
-                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--yellow)', flexShrink: 0 }}>0{i + 1}</span>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </AppShell>
-      )
-    }
-
-    const d = data as HRDashboard
-    return (
-      <AppShell
-        title={`Welcome, ${d?.user?.full_name?.split(' ')[0] ?? user?.full_name?.split(' ')[0] ?? 'there'}`}
-        subtitle="Your recruitment overview"
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
-          <StatCard label="Active Jobs"   value={d?.jobs?.active              ?? 0} color="var(--blue-bright)" />
-          <StatCard label="Total Jobs"    value={d?.jobs?.total               ?? 0} />
-          <StatCard label="Applications"  value={d?.applications?.total       ?? 0} />
-          <StatCard label="Shortlisted"   value={d?.applications?.shortlisted ?? 0} color="var(--green)" />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <Building2 size={16} style={{ color: 'var(--blue-bright)' }} />
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Company</h3>
-            </div>
-            <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-              {d?.company?.name ?? 'Your Company'}
-            </p>
-            <Badge label={d?.company?.status ?? 'pending'} />
-            {(d?.company?.status === 'pending' || !d?.company?.status) && (
-              <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8 }}>
-                <p style={{ fontSize: 12, color: 'var(--yellow)', lineHeight: 1.5 }}>
-                  Awaiting admin approval before you can post jobs.
-                </p>
+    if (!data || (data as any)?.error) {
+        const isPending = !(data as any)?.message || (data as any)?.message === 'pending'
+        return (
+          <AppShell
+            title={`Welcome, ${user?.full_name?.split(' ')[0] ?? 'there'}`}
+            subtitle="Your account status"
+          >
+            <div className="card" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center', padding: 40 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                <Building2 size={24} style={{ color: 'var(--yellow)' }} />
               </div>
-            )}
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {d?.jobs?.active ?? 0} active · {d?.jobs?.closed ?? 0} closed
+              <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
+                Awaiting Admin Approval
+              </h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 24 }}>
+                Your company registration has been submitted and is under review. You will be able to post jobs once approved.
               </p>
+              <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', textAlign: 'left', marginBottom: 20 }}>
+                <p className="label-caps" style={{ marginBottom: 8 }}>What happens next</p>
+                {[
+                  'Admin reviews your company registration',
+                  'You receive an email confirmation once approved',
+                  'Log out and back in to activate your HR dashboard',
+                ].map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
+                    <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--yellow)', flexShrink: 0 }}>0{i + 1}</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+                If your company has already been approved, try logging out and back in.
+              </p>
+              <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
+                Refresh page
+              </button>
             </div>
-            <Link href="/hr" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', marginTop: 12, display: 'inline-flex' }}>
-              Manage jobs <ChevronRight size={13} />
-            </Link>
-          </div>
+          </AppShell>
+        )
+      }
 
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <Users size={16} style={{ color: 'var(--green)' }} />
-              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Applications</h3>
+        const d = data as HRDashboard
+        return (
+          <AppShell
+            title={`Welcome, ${d?.user?.full_name?.split(' ')[0] ?? user?.full_name?.split(' ')[0] ?? 'there'}`}
+            subtitle="Your recruitment overview"
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
+              <StatCard label="Active Jobs"   value={d?.jobs?.active              ?? 0} color="var(--blue-bright)" />
+              <StatCard label="Total Jobs"    value={d?.jobs?.total               ?? 0} />
+              <StatCard label="Applications"  value={d?.applications?.total       ?? 0} />
+              <StatCard label="Shortlisted"   value={d?.applications?.shortlisted ?? 0} color="var(--green)" />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[
-                { label: 'Total',       value: d?.applications?.total       ?? 0, color: 'var(--text-primary)' },
-                { label: 'Pending',     value: d?.applications?.pending     ?? 0, color: 'var(--yellow)' },
-                { label: 'Shortlisted', value: d?.applications?.shortlisted ?? 0, color: 'var(--green)' },
-              ].map(s => (
-                <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
-                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 600, color: s.color }}>{s.value}</span>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Building2 size={16} style={{ color: 'var(--blue-bright)' }} />
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Company</h3>
                 </div>
-              ))}
+                <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+                  {d?.company?.name ?? 'Your Company'}
+                </p>
+                <Badge label={d?.company?.status ?? 'pending'} />
+                {(d?.company?.status === 'pending' || !d?.company?.status) && (
+                  <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 12, color: 'var(--yellow)', lineHeight: 1.5 }}>
+                      Awaiting admin approval before you can post jobs.
+                    </p>
+                  </div>
+                )}
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {d?.jobs?.active ?? 0} active · {d?.jobs?.closed ?? 0} closed
+                  </p>
+                </div>
+                <Link href="/hr" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', marginTop: 12, display: 'inline-flex' }}>
+                  Manage jobs <ChevronRight size={13} />
+                </Link>
+              </div>
+
+              <div className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Users size={16} style={{ color: 'var(--green)' }} />
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Applications</h3>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { label: 'Total',       value: d?.applications?.total       ?? 0, color: 'var(--text-primary)' },
+                    { label: 'Pending',     value: d?.applications?.pending     ?? 0, color: 'var(--yellow)' },
+                    { label: 'Shortlisted', value: d?.applications?.shortlisted ?? 0, color: 'var(--green)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
+                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 600, color: s.color }}>{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link href="/hr" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}>
+                  View applications <ChevronRight size={13} />
+                </Link>
+              </div>
             </div>
-            <Link href="/hr" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}>
-              View applications <ChevronRight size={13} />
-            </Link>
-          </div>
-        </div>
-      </AppShell>
+          </AppShell>
     )
   }
   // ── GRADUATE DASHBOARD ────────────────────────────────────────────────────
