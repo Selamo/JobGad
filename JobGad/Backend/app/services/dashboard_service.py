@@ -258,12 +258,43 @@ async def get_hr_dashboard(
     hr_result = await db.execute(hr_stmt)
     hr_profile = hr_result.scalar_one_or_none()
 
-    if not hr_profile:
-        return {
-            "error": "HR profile not found.",
-            "message": "Please register as HR first.",
-        }
+    hr_result = await db.execute(hr_stmt)
+    hr_profile = hr_result.scalar_one_or_none()
 
+    if not hr_profile:
+        # Try to auto-create HR profile if user has role hr and has a company
+        company_stmt = select(Company).where(Company.created_by == user.id)
+        company_result = await db.execute(company_stmt)
+        company = company_result.scalar_one_or_none()
+
+        if company and company.status == "approved":
+            # Auto-create approved HR profile
+            from datetime import datetime, timezone as tz
+            hr_profile = HRProfile(
+                user_id=user.id,
+                company_id=company.id,
+                job_title="HR Manager",
+                is_company_admin=True,
+                status="approved",
+                approved_at=datetime.now(tz.utc),
+            )
+            db.add(hr_profile)
+            await db.commit()
+            await db.refresh(hr_profile)
+        elif company and company.status == "pending":
+            return {
+                "error": "Company pending approval.",
+                "message": "Your company is awaiting admin approval.",
+                "company": {
+                    "name": company.name,
+                    "status": company.status,
+                }
+            }
+        else:
+            return {
+                "error": "HR profile not found.",
+                "message": "Please register as HR first.",
+            }
     # Get company
     company_stmt = select(Company).where(
         Company.id == hr_profile.company_id

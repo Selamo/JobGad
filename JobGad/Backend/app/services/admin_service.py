@@ -101,10 +101,33 @@ async def approve_company(
         )
 
     if company.status == "approved":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Company is already approved.",
-        )
+        # Still try to create HR profile if missing
+        if company.created_by:
+            hr_stmt = select(HRProfile).where(HRProfile.user_id == company.created_by)
+            hr_result = await db.execute(hr_stmt)
+            existing_hr = hr_result.scalar_one_or_none()
+
+            if not existing_hr:
+                hr_profile = HRProfile(
+                    user_id=company.created_by,
+                    company_id=company.id,
+                    job_title="HR Manager",
+                    is_company_admin=True,
+                    status="approved",
+                    approved_by=user.id,
+                    approved_at=datetime.now(timezone.utc),
+                )
+                db.add(hr_profile)
+
+                creator_stmt = select(User).where(User.id == company.created_by)
+                creator_result = await db.execute(creator_stmt)
+                creator = creator_result.scalar_one_or_none()
+                if creator:
+                    creator.role = "hr"
+
+                await db.commit()
+
+        return company
 
     company.status = "approved"
     company.approved_by = user.id
