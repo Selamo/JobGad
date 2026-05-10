@@ -132,12 +132,16 @@ export const jobs = {
     return request<{ jobs: Job[]; total: number; page: number; page_size: number }>(`/jobs/listings?${q}`)
   },
   get: (id: string) => request<Job>(`/jobs/listings/${id}`),
-  runMatches: (topK = 10, employmentType?: string) => {
+  runMatches: async (topK = 10, employmentType?: string) => {
     const q = new URLSearchParams({ top_k: String(topK) })
     if (employmentType) q.set('employment_type', employmentType)
-    return request<JobMatch[]>(`/jobs/matches/run?${q}`, { method: 'POST' })
+    const res = await request<any>(`/jobs/matches/run?${q}`, { method: 'POST' })
+    return Array.isArray(res) ? res : (res?.matches ?? [])
   },
-  getMatches: (status?: string) => request<JobMatch[]>(`/jobs/matches${status ? `?match_status=${status}` : ''}`),
+ getMatches: async (status?: string) => {
+    const res = await request<any>(`/jobs/matches${status ? `?match_status=${status}` : ''}`)
+    return Array.isArray(res) ? res : (res?.matches ?? [])
+  },
   updateMatchStatus: (matchId: string, status: string) =>
     request(`/jobs/matches/${matchId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   explainMatch: (jobId: string) => request<MatchExplanation>(`/jobs/matches/${jobId}/explain`),
