@@ -182,8 +182,12 @@ async def update_application_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Update the status of a job application.
-
-    **Status lifecycle:**
-    """
+    """Update the status of an application (reviewed, shortlisted, rejected, accepted)."""
+    return await hr_update_application_status(
+        db=db,
+        user=current_user,
+        application_id=application_id,
+        new_status=data.status,
+        hr_notes=data.hr_notes,
+    )
+    
