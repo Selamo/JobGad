@@ -13,11 +13,11 @@ type HRTab = 'jobs' | 'applications'
 export default function HRPage() {
   const [tab, setTab]             = useState<HRTab>('jobs')
   const [jobs, setJobs]           = useState<Job[]>([])
-  const [apps, setApps]           = useState<Application[]>([])
+  const [apps, setApps]           = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
   const [showJobModal, setShowJobModal] = useState(false)
   const [showAppModal, setShowAppModal] = useState(false)
-  const [selectedApp, setSelectedApp]   = useState<Application | null>(null)
+  const [selectedApp, setSelectedApp]   = useState<any | null>(null)
   const [saving, setSaving]       = useState(false)
   const [statusNote, setStatusNote] = useState('')
   const [newStatus, setNewStatus]   = useState('')
@@ -32,8 +32,14 @@ export default function HRPage() {
     setLoading(true)
     try {
       const [j, a] = await Promise.allSettled([hr.getJobs(), hr.getApplications()])
-      if (j.status === 'fulfilled') setJobs(Array.isArray(j.value) ? j.value : [])
-      if (a.status === 'fulfilled') setApps(Array.isArray(a.value) ? a.value : [])
+      if (j.status === 'fulfilled') {
+        const val = j.value as any
+        setJobs(Array.isArray(val) ? val : val?.jobs ?? [])
+      }
+      if (a.status === 'fulfilled') {
+        const val = a.value as any
+        setApps(Array.isArray(val) ? val : val?.applications ?? [])
+      }
     } finally { setLoading(false) }
   }
 
@@ -77,7 +83,7 @@ export default function HRPage() {
     } finally { setSaving(false) }
   }
 
-  function openApp(app: Application) {
+  function openApp(app: any) {
     setSelectedApp(app)
     setNewStatus(app.status)
     setStatusNote('')
@@ -91,12 +97,29 @@ export default function HRPage() {
   function update(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
 
   function formatDate(iso: string) {
+    if (!iso) return '—'
     return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
+  function getApplicantName(app: any) {
+    return app?.user?.full_name || app?.applicant_name || 'Graduate Applicant'
+  }
+
+  function getApplicantInitial(app: any) {
+    return (getApplicantName(app)).charAt(0).toUpperCase()
+  }
+
+  function getJobTitle(app: any) {
+    return app?.job?.title || app?.job_title || '—'
+  }
+
+  function getAppDate(app: any) {
+    return formatDate(app?.applied_at || app?.created_at)
   }
 
   const pending     = apps.filter(a => a.status === 'pending').length
   const shortlisted = apps.filter(a => a.status === 'shortlisted').length
-  const activeJobs  = jobs.filter(j => j.is_active).length
+  const activeJobs  = jobs.filter(j => (j as any).is_active).length
 
   return (
     <AppShell
@@ -146,7 +169,7 @@ export default function HRPage() {
             action={<button className="btn btn-primary" onClick={() => setShowJobModal(true)}><Plus size={14} /> Post a job</button>} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {jobs.map(job => (
+            {jobs.map((job: any) => (
               <div key={job.id} className="card" style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
@@ -154,7 +177,7 @@ export default function HRPage() {
                       <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 3 }}>{job.title}</h3>
                       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={11} /> {job.location}</span>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} /> {formatDate(job.created_at)}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} /> {formatDate(job.posted_at || job.created_at)}</span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
@@ -190,17 +213,19 @@ export default function HRPage() {
               <div key={app.id} className="card card-interactive" onClick={() => openApp(app)}
                 style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: 'var(--blue-dim)', color: 'var(--blue-bright)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
-                  {(app as any).applicant_name?.charAt(0) || 'G'}
+                  {getApplicantInitial(app)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div>
-                      <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{(app as any).applicant_name || 'Graduate Applicant'}</p>
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Applied for: <span style={{ color: 'var(--text-secondary)' }}>{app.job?.title}</span></p>
+                      <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{getApplicantName(app)}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Applied for: <span style={{ color: 'var(--text-secondary)' }}>{getJobTitle(app)}</span>
+                      </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <Badge label={app.status} />
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(app.created_at)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{getAppDate(app)}</span>
                       <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
                     </div>
                   </div>
@@ -264,13 +289,19 @@ export default function HRPage() {
             <div className="modal-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: 10, marginBottom: 20 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--blue-dim)', color: 'var(--blue-bright)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
-                  {(selectedApp as any).applicant_name?.charAt(0) || 'G'}
+                  {getApplicantInitial(selectedApp)}
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 600 }}>{(selectedApp as any).applicant_name || 'Graduate Applicant'}</p>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Applied for: {selectedApp.job?.title} · {formatDate(selectedApp.created_at)}</p>
+                  <p style={{ fontSize: 14, fontWeight: 600 }}>{getApplicantName(selectedApp)}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Applied for: {getJobTitle(selectedApp)} · {getAppDate(selectedApp)}
+                  </p>
+                  {selectedApp?.user?.email && (
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{selectedApp.user.email}</p>
+                  )}
                 </div>
               </div>
+
               {selectedApp.cover_letter && (
                 <div style={{ marginBottom: 20 }}>
                   <p className="label-caps" style={{ marginBottom: 8 }}>Cover letter</p>
@@ -279,6 +310,7 @@ export default function HRPage() {
                   </div>
                 </div>
               )}
+
               <div className="form-group">
                 <label className="label">Update status</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -290,6 +322,7 @@ export default function HRPage() {
                   ))}
                 </div>
               </div>
+
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="label">Notes for applicant <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
                 <textarea className="input" rows={3} placeholder="e.g. Strong candidate, scheduling a technical interview..."

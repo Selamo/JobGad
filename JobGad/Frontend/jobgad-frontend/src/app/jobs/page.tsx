@@ -117,10 +117,9 @@ export default function JobsPage() {
       setShowApplyModal(false)
       setCoverLetter('')
       setApplyTarget(null)
-      // Reload matches to reflect updated status
       if (tab === 'matches') loadMatches()
+      else loadBrowse()
     } catch (e: any) {
-      // If error message suggests it already went through, show success
       if (e.message?.toLowerCase().includes('already') || e.message?.toLowerCase().includes('duplicate')) {
         toast('You have already applied to this job', 'info')
         setShowApplyModal(false)

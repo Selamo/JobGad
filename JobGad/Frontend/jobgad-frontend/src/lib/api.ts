@@ -207,10 +207,16 @@ export const dashboard = {
 
 export const hr = {
   postJob: (data: object) => request('/hr/jobs', { method: 'POST', body: JSON.stringify(data) }),
-  getJobs: (includeInactive = false) => request<Job[]>(`/hr/jobs?include_closed=${includeInactive}`),
+  getJobs: async (includeInactive = false) => {
+    const res = await request<any>(`/hr/jobs?include_closed=${includeInactive}`)
+    return Array.isArray(res) ? res : (res?.jobs ?? [])
+  },
   updateJob: (id: string, data: object) => request(`/hr/jobs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   closeJob: (id: string) => request(`/hr/jobs/${id}/close`, { method: 'PATCH' }),
-  getApplications: (status?: string) => request<Application[]>(`/hr/applications${status ? `?status_filter=${status}` : ''}`),
+  getApplications: async (status?: string) => {
+    const res = await request<any>(`/hr/applications${status ? `?status_filter=${status}` : ''}`)
+    return Array.isArray(res) ? res : (res?.applications ?? [])
+  },
   getJobApplications: (jobId: string) => request<Application[]>(`/hr/jobs/${jobId}/applications`),
   updateApplicationStatus: (appId: string, status: string, notes?: string) =>
     request(`/hr/applications/${appId}/status`, { method: 'PATCH', body: JSON.stringify({ status, hr_notes: notes }) }),
