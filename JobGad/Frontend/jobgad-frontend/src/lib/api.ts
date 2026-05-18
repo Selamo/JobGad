@@ -252,7 +252,15 @@ export interface CoachingSession { session_id: string; job_title?: string; compa
 export interface Question { question_number: number; question: string; type: string; difficulty?: string; time_limit_seconds: number; hints: string[]; what_we_look_for?: string }
 export interface IRIScore { overall_score: number; communication: number; technical_accuracy: number; confidence: number; structure: number; readiness_level: string; next_step: string }
 export interface IRIData { current_iri: number; readiness_level: string; breakdown: { communication: number; technical_accuracy: number; confidence: number; structure: number }; history: { score: number; date: string }[]; total_sessions: number }
-export interface GeneratedCV { cv_id: string; file_name: string; file_format: string; storage_url?: string; generated_at: string }
+export interface GeneratedCV {
+  id: string
+  cv_id?: string
+  job_title?: string
+  file_name: string
+  file_format: string
+  storage_url?: string
+  generated_at: string
+}
 export interface Notification { id: string; type: string; title: string; message: string; is_read: boolean; related_job_id?: string; related_application_id?: string; created_at: string }
 export interface NotificationsResponse { notifications: Notification[]; total: number; unread: number }
 export interface GraduateDashboard { user: User; profile: { exists: boolean; completeness: number; headline: string; target_role: string; skills_count: number; iri_score: number }; job_matches: { total: number; new_this_week: number; top_match_score: number; top_match_title: string }; applications: ApplicationStats & { recent_applications: Application[] }; recent_applications: Application[]; coaching: { total_sessions: number; current_iri: number; communication: number; technical_accuracy: number; confidence: number; structure: number; iri_history: { score: number; date: string }[]; readiness_level: string }; generated_cvs: number; unread_notifications: number; next_steps: { priority: number; action: string; description: string; link: string; icon: string }[] }

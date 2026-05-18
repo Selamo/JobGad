@@ -73,9 +73,10 @@ export default function CVPage() {
   }
 
   async function handleDownload(item: GeneratedCV) {
-    setDownloading(item.cv_id)
+    const cvId = item.id || item.cv_id || ''
+    setDownloading(cvId)
     try {
-      await cv.download(item.cv_id, item.file_name)
+      await cv.download(cvId, item.file_name)
       toast('Download started', 'success')
     } catch (e: any) {
       toast(e.message || 'Download failed', 'error')
@@ -130,7 +131,7 @@ export default function CVPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
           {cvList.map(item => (
-            <div key={item.cv_id} className="card card-interactive">
+             <div key={item.id || item.cv_id} className="card card-interactive">
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
                 <div style={{ width: 44, height: 52, borderRadius: 8, flexShrink: 0, background: item.file_format === 'pdf' ? 'rgba(239,68,68,0.12)' : 'rgba(37,99,235,0.12)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                   <FileText size={18} style={{ color: item.file_format === 'pdf' ? 'var(--red)' : 'var(--blue-bright)' }} />
@@ -147,9 +148,9 @@ export default function CVPage() {
                 <CheckCircle2 size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
               </div>
               <button className="btn btn-primary btn-sm" style={{ width: '100%' }}
-                onClick={() => handleDownload(item)} disabled={downloading === item.cv_id}>
-                {downloading === item.cv_id ? <Spinner size="sm" /> : <Download size={13} />}
-                {downloading === item.cv_id ? 'Downloading...' : 'Download'}
+                onClick={() => handleDownload(item)} disabled={downloading === (item.id || item.cv_id)}>
+                {downloading === (item.id || item.cv_id) ? <Spinner size="sm" /> : <Download size={13} />}
+                {downloading === (item.id || item.cv_id) ? 'Downloading...' : 'Download'}
               </button>
             </div>
           ))}
