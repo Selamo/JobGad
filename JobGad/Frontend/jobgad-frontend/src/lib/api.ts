@@ -189,7 +189,10 @@ export const cv = {
     request('/cv/generate', { method: 'POST', body: JSON.stringify({ job_id: jobId, file_format: fileFormat }) }),
   generateWithAnswers: (data: object) =>
     request('/cv/generate-with-answers', { method: 'POST', body: JSON.stringify(data) }),
-  list: () => request<GeneratedCV[]>('/cv/'),
+  list: async () => {
+    const res = await request<any>('/cv/')
+    return Array.isArray(res) ? res : (res?.cvs ?? [])
+  },
   download: (cvId: string, filename: string) => downloadFile(`/cv/${cvId}/download`, filename),
 }
 

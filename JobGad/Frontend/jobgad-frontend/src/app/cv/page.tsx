@@ -26,8 +26,14 @@ export default function CVPage() {
     setLoading(true)
     try {
       const [cvs, jbs] = await Promise.allSettled([cv.list(), jobs.list({ page_size: 50 })])
-      if (cvs.status === 'fulfilled') setCVList(Array.isArray(cvs.value) ? cvs.value : [])
-      if (jbs.status === 'fulfilled') setJobList(jbs.value.jobs ?? [])
+      if (cvs.status === 'fulfilled') {
+        const val = cvs.value as any
+        setCVList(Array.isArray(val) ? val : (val?.cvs ?? []))
+     }
+      if (jbs.status === 'fulfilled') {
+        const val = jbs.value as any
+        setJobList(Array.isArray(val) ? val : (val?.jobs ?? []))
+     }
     } finally { setLoading(false) }
   }
 

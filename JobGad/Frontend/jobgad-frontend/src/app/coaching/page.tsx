@@ -35,8 +35,14 @@ export default function CoachingPage() {
         jobs.list({ page_size: 50 }),
       ])
       if (iri.status  === 'fulfilled') setIriData(iri.value)
-      if (sess.status === 'fulfilled') setSessions(Array.isArray(sess.value) ? sess.value : [])
-      if (jbs.status  === 'fulfilled') setJobList(jbs.value.jobs ?? [])
+      if (sess.status === 'fulfilled') {
+        const val = sess.value as any
+        setSessions(Array.isArray(val) ? val : (val?.sessions ?? []))
+      }
+      if (jbs.status === 'fulfilled') {
+         const val = jbs.value as any
+         setJobList(Array.isArray(val) ? val : (val?.jobs ?? []))
+       }
     } finally { setLoading(false) }
   }
 
