@@ -16,6 +16,7 @@ from app.models.user import User
 from app.schemas.job import JobCreate, JobUpdate
 from app.tools.pinecone_tools import upsert_job_vector, delete_job_vector
 from app.tools.scoring_tools import build_job_text
+from sqlalchemy import func
 
 
 # ─── Public: Browse Listings ──────────────────────────────────────────────────
@@ -32,12 +33,18 @@ async def get_job_listings(
     Return paginated active job listings with optional filters.
     Returns (jobs, total_count).
     """
-    stmt = select(JobListing).where(JobListing.is_active == True)
+    from sqlalchemy.orm import selectinload
+
+    stmt = (
+        select(JobListing)
+        .where(JobListing.is_active == True)
+        .options(selectinload(JobListing.company))
+    )
 
     if search:
         term = f"%{search}%"
         stmt = stmt.where(
-            JobListing.title.ilike(term) | JobListing.company.ilike(term)
+            JobListing.title.ilike(term)
         )
     if employment_type:
         stmt = stmt.where(JobListing.employment_type == employment_type)
@@ -45,8 +52,9 @@ async def get_job_listings(
         stmt = stmt.where(JobListing.location.ilike(f"%{location}%"))
 
     # Count total before pagination
-    count_result = await db.execute(stmt)
-    total = len(count_result.scalars().all())
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar() or 0
 
     # Apply ordering + pagination
     stmt = (
