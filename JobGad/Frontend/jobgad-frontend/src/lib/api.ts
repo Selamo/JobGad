@@ -185,8 +185,10 @@ export const coaching = {
 }
 
 export const cv = {
-  generate: (jobId: string, fileFormat: 'pdf' | 'docx' = 'pdf') =>
-    request('/cv/generate', { method: 'POST', body: JSON.stringify({ job_id: jobId, file_format: fileFormat }) }),
+  generate: async (jobId: string, fileFormat: 'pdf' | 'docx' = 'pdf') => {
+    const res = await request<any>('/cv/generate', { method: 'POST', body: JSON.stringify({ job_id: jobId, file_format: fileFormat }) })
+    return res
+  },
   generateWithAnswers: (data: object) =>
     request('/cv/generate-with-answers', { method: 'POST', body: JSON.stringify(data) }),
   list: async () => {
