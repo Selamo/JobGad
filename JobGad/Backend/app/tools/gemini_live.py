@@ -197,7 +197,7 @@ class GeminiLiveSession:
 
         try:
             async with self.client.aio.live.connect(
-                model="models/gemini-2.0-flash-live-001",
+                model="gemini-2.0-flash-live-001",
                 config=self.config,
             ) as session:
                 self.session = session
