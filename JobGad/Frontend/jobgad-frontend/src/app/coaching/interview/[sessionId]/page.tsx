@@ -167,7 +167,9 @@ export default function InterviewRoom() {
       await requestPermission()
       answerStart.current = Date.now()
       await startRecording((chunk) => {
-        if (question) sendAudioChunk(chunk, question.question_number)
+        // In audio mode send regardless of question object
+        const qNum = question?.question_number ?? 1
+        sendAudioChunk(chunk, qNum)
       })
     } catch {
       setError('Microphone access denied. Switch to text mode.')
@@ -261,9 +263,7 @@ export default function InterviewRoom() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {mode === 'audio' ? `${totalQ} questions` : `${doneQ} / ${totalQ} questions`}
-          </span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{doneQ} / {totalQ} questions</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {isConnected
               ? <Wifi size={14} style={{ color: 'var(--green)' }} />
