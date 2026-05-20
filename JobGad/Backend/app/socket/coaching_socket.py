@@ -108,22 +108,24 @@ class CoachingWebSocketHandler:
             self.timer_task = None
 
     async def forward_gemini_audio(self):
-        """
-        Forward audio from Gemini to the frontend.
-        Runs as a background task.
-        """
-        while self.is_active:
-            try:
-                chunk = await asyncio.wait_for(
-                    self.audio_output_queue.get(),
-                    timeout=0.1,
-                )
-                await self.send(MSG_AUDIO_RESPONSE, chunk)
-            except asyncio.TimeoutError:
-                continue
-            except Exception as e:
-                print(f"[WebSocket] Audio forward error: {e}")
+    while self.is_active:
+        try:
+            chunk = await asyncio.wait_for(
+                self.audio_output_queue.get(),
+                timeout=0.5,
+            )
+            # Send audio response to frontend
+            await self.send(MSG_AUDIO_RESPONSE, {
+                "data": chunk.get("data", ""),
+                "mime_type": chunk.get("mime_type", "audio/pcm;rate=24000"),
+            })
+        except asyncio.TimeoutError:
+            continue
+        except Exception as e:
+            print(f"[WebSocket] Audio forward error: {e}")
+            if not self.is_active:
                 break
+            continue
 
     async def forward_gemini_text(self):
         """
