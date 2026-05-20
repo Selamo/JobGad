@@ -53,36 +53,38 @@ export default function InterviewRoom() {
   const router    = useRouter()
   const sessionId = params.sessionId as string
 
-  const [state, setState]           = useState<SessionState>('connecting')
-  const [mode, setMode]             = useState<'audio' | 'text'>('audio')
-  const [question, setQuestion]     = useState<Question | null>(null)
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([])
-  const [iriResult, setIriResult]   = useState<IRIResult | null>(null)
-  const [timerSec, setTimerSec]     = useState(120)
-  const [totalSec, setTotalSec]     = useState(120)
-  const [statusMsg, setStatusMsg]   = useState('Connecting to AI interviewer...')
+  const [state, setState]             = useState<SessionState>('connecting')
+  const [mode, setMode]               = useState<'audio' | 'text'>('audio')
+  const [question, setQuestion]       = useState<Question | null>(null)
+  const [evaluation, setEvaluation]   = useState<Evaluation | null>(null)
+  const [transcript, setTranscript]   = useState<TranscriptEntry[]>([])
+  const [iriResult, setIriResult]     = useState<IRIResult | null>(null)
+  const [timerSec, setTimerSec]       = useState(120)
+  const [totalSec, setTotalSec]       = useState(120)
+  const [statusMsg, setStatusMsg]     = useState('Connecting to AI interviewer...')
   const [personality, setPersonality] = useState('friendly')
-  const [totalQ, setTotalQ]         = useState(5)
-  const [doneQ, setDoneQ]           = useState(0)
-  const [isLastQ, setIsLastQ]       = useState(false)
-  const [textAnswer, setTextAnswer] = useState('')
-  const [error, setError]           = useState('')
-  const answerStart   = useRef(Date.now())
-  const transcriptRef = useRef<HTMLDivElement>(null)
+  const [totalQ, setTotalQ]           = useState(5)
+  const [doneQ, setDoneQ]             = useState(0)
+  const [isLastQ, setIsLastQ]         = useState(false)
+  const [textAnswer, setTextAnswer]   = useState('')
+  const [error, setError]             = useState('')
 
-  const { enqueueAudio, stopAudio }                                          = useAudioPlayer()
-  const { startRecording, stopRecording, requestPermission, isRecording }    = useMicrophone()
+  const answerStart          = useRef(Date.now())
+  const transcriptRef        = useRef<HTMLDivElement>(null)
+  const currentAudioQuestion = useRef(1)
+
+  const { enqueueAudio, stopAudio }                                       = useAudioPlayer()
+  const { startRecording, stopRecording, requestPermission, isRecording } = useMicrophone()
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : ''
 
   const handleMessage = useCallback((msg: { type: string; data: Record<string, unknown> }) => {
     switch (msg.type) {
+
       case 'session_ready':
         setMode((msg.data.mode as 'audio' | 'text') || 'audio')
         setTotalQ((msg.data.total_questions as number) || 5)
         setPersonality((msg.data.personality as string) || 'friendly')
         setStatusMsg((msg.data.message as string) || 'AI interviewer ready!')
-        // Move to interviewing state immediately so mic button shows
         setState('interviewing')
         break
 
@@ -94,7 +96,7 @@ export default function InterviewRoom() {
         setTimerSec(q.time_limit_seconds)
         setTotalSec(q.time_limit_seconds)
         setState('interviewing')
-        setDoneQ(prev => prev)
+        currentAudioQuestion.current = q.question_number
         answerStart.current = Date.now()
         if (mode === 'text' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
           const u = new SpeechSynthesisUtterance(q.question)
@@ -112,9 +114,13 @@ export default function InterviewRoom() {
       }
 
       case 'transcript':
-        setTranscript(p => [...p, { role: msg.data.role as string, text: msg.data.text as string }])
+        setTranscript(p => [...p, {
+          role: msg.data.role as string,
+          text: msg.data.text as string,
+        }])
         setTimeout(() => {
-          if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
+          if (transcriptRef.current)
+            transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
         }, 50)
         break
 
@@ -127,6 +133,7 @@ export default function InterviewRoom() {
         if (msg.data.evaluation) setEvaluation(msg.data.evaluation as Evaluation)
         setDoneQ(msg.data.question_number as number)
         setIsLastQ(!!(msg.data.is_last_question))
+        currentAudioQuestion.current = (msg.data.question_number as number) + 1
         break
 
       case 'session_complete':
@@ -135,13 +142,15 @@ export default function InterviewRoom() {
         setState('completed')
         break
 
-      case 'error':
+      case 'error': {
         const errMsg = (msg.data.message as string) || 'Something went wrong.'
-        if (!errMsg.toLowerCase().includes('text mode') && !errMsg.toLowerCase().includes('switching')) {
+        if (!errMsg.toLowerCase().includes('text mode') &&
+            !errMsg.toLowerCase().includes('switching')) {
           setError(errMsg)
           setState('error')
         }
         break
+      }
 
       default:
         break
@@ -166,14 +175,25 @@ export default function InterviewRoom() {
     try {
       await requestPermission()
       answerStart.current = Date.now()
+      const qNum = question?.question_number ?? currentAudioQuestion.current
       await startRecording((chunk) => {
-        // In audio mode send regardless of question object
-        const qNum = question?.question_number ?? 1
         sendAudioChunk(chunk, qNum)
       })
     } catch {
       setError('Microphone access denied. Switch to text mode.')
     }
+  }
+
+  async function handleStopAndEvaluate() {
+    stopRecording()
+    if (mode !== 'audio') return
+    const qNum = question?.question_number ?? currentAudioQuestion.current
+    const timeTaken = Math.floor((Date.now() - answerStart.current) / 1000)
+    // Small delay to allow last audio chunks to be sent
+    await new Promise(r => setTimeout(r, 600))
+    // Signal backend to evaluate the audio answer
+    sendTextAnswer('__audio_complete__', qNum, timeTaken)
+    setState('evaluating')
   }
 
   function handleSubmitText() {
@@ -193,9 +213,9 @@ export default function InterviewRoom() {
     timerSec > 60 ? 'var(--green)'  :
     timerSec > 30 ? 'var(--yellow)' : 'var(--red)'
 
-  const timerPct = (timerSec / totalSec) * 100
+  const timerPct = totalSec > 0 ? (timerSec / totalSec) * 100 : 0
 
-  // Completed screen
+  // ── Completed screen ───────────────────────────────────────────────────────
   if (state === 'completed' && iriResult) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -216,7 +236,9 @@ export default function InterviewRoom() {
                   ['Structure',     iriResult.structure],
                 ].map(([label, val]) => (
                   <div key={label as string} style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500, color: 'var(--blue-bright)' }}>{Math.round(val as number)}</div>
+                    <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500, color: 'var(--blue-bright)' }}>
+                      {Math.round(val as number)}
+                    </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
                   </div>
                 ))}
@@ -234,7 +256,7 @@ export default function InterviewRoom() {
     )
   }
 
-  // Error screen
+  // ── Error screen ───────────────────────────────────────────────────────────
   if (state === 'error') {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -243,14 +265,16 @@ export default function InterviewRoom() {
             <WifiOff size={22} style={{ color: 'var(--red)' }} />
           </div>
           <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Connection error</h2>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>{error || 'Something went wrong with the interview connection.'}</p>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+            {error || 'Something went wrong with the interview connection.'}
+          </p>
           <button className="btn btn-primary" onClick={() => router.push('/coaching')}>Back to coaching</button>
         </div>
       </div>
     )
   }
 
-  // Main interview UI
+  // ── Main interview UI ──────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column' }}>
 
@@ -286,20 +310,20 @@ export default function InterviewRoom() {
           <div className="card">
             {!question ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 12 }}>
-                  {state === 'interviewing' && mode === 'audio' ? (
-                      <>
-                          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(37,99,235,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--blue-core)', animation: 'pulse 1.5s infinite' }} />
-                          </div>
-                          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>AI interviewer is speaking...</p>
-                          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Listen carefully then hold the mic button to respond</p>
-                      </>
-                  ) : (
-                      <>
-                          <div className="spinner spinner-lg" />
-                          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{statusMsg}</p>
-                      </>
-                  )}
+                {state === 'interviewing' && mode === 'audio' ? (
+                  <>
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(37,99,235,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--blue-core)' }} />
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>AI interviewer is speaking...</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Listen carefully then hold the mic button to respond</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="spinner spinner-lg" />
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{statusMsg}</p>
+                  </>
+                )}
               </div>
             ) : (
               <>
@@ -335,15 +359,26 @@ export default function InterviewRoom() {
             <div className="card">
               {mode === 'audio' ? (
                 <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-                        {isRecording ? 'Recording — release to stop' : question ? 'Hold button to answer' : 'Listen to the AI interviewer then hold to speak'}
-                    </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                    {isRecording
+                      ? 'Recording — release to stop'
+                      : question
+                        ? 'Hold button to answer'
+                        : 'Listen to the AI then hold to respond'}
+                  </p>
                   <button
                     onMouseDown={handleStartRecording}
-                    onMouseUp={stopRecording}
+                    onMouseUp={handleStopAndEvaluate}
                     onTouchStart={handleStartRecording}
-                    onTouchEnd={stopRecording}
-                    style={{ width: 72, height: 72, borderRadius: '50%', border: 'none', cursor: 'pointer', background: isRecording ? 'var(--red)' : 'var(--blue-mid)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', transition: 'all 0.15s', boxShadow: isRecording ? '0 0 0 8px rgba(239,68,68,0.2)' : 'none' }}>
+                    onTouchEnd={handleStopAndEvaluate}
+                    style={{
+                      width: 72, height: 72, borderRadius: '50%', border: 'none',
+                      cursor: 'pointer',
+                      background: isRecording ? 'var(--red)' : 'var(--blue-mid)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto', transition: 'all 0.15s',
+                      boxShadow: isRecording ? '0 0 0 8px rgba(239,68,68,0.2)' : 'none',
+                    }}>
                     {isRecording ? <MicOff size={28} color="white" /> : <Mic size={28} color="white" />}
                   </button>
                   <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setMode('text')}>
