@@ -126,9 +126,15 @@ export default function InterviewRoom() {
         setIriResult((msg.data as { iri_score: IRIResult }).iri_score)
         setState('completed')
         break
-      case 'error':
-        setError((msg.data.message as string) || 'Something went wrong.')
-        setState('error')
+      case 'error': {
+        const errMsg = (msg.data.message as string) || 'Something went wrong.'
+        // If switching to text mode, don't show error screen
+        if (errMsg.toLowerCase().includes('switching to text') || errMsg.toLowerCase().includes('text mode')) {
+            console.log('[Interview] Switching to text mode:', errMsg)
+        } else {
+            setError(errMsg)
+            setState('error')
+        }
         break
     }
   }, [mode, enqueueAudio, stopAudio])
