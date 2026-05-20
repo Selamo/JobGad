@@ -1,7 +1,6 @@
 """
 Coaching WebSocket routes — real-time interview with Gemini Live API.
 """
-import json
 import asyncio
 import base64
 from uuid import UUID
@@ -18,7 +17,6 @@ from app.models.job import JobListing
 from app.models.company import Company
 from app.socket.coaching_socket import (
     CoachingWebSocketHandler,
-    MSG_START_SESSION,
     MSG_AUDIO_CHUNK,
     MSG_TEXT_ANSWER,
     MSG_END_SESSION,
@@ -34,24 +32,15 @@ from app.socket.coaching_socket import (
 router = APIRouter()
 
 
-async def get_user_from_token(token: str) -> User | None:
-    """Validate JWT and return user."""
+async def get_user_from_token(token: str):
     try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
         if not user_id:
             return None
-
         async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(User).where(User.id == user_id)
-            )
+            result = await db.execute(select(User).where(User.id == user_id))
             return result.scalar_one_or_none()
-
     except JWTError:
         return None
 
@@ -61,33 +50,8 @@ async def coaching_websocket(
     websocket: WebSocket,
     session_id: UUID,
     token: str = Query(...),
-    mode: str = Query(default="audio", description="audio or text"),
+    mode: str = Query(default="audio"),
 ):
-    """
-    WebSocket endpoint for real-time AI interview coaching.
-
-    Modes:
-    - audio: Full Gemini Live API with real audio (default)
-    - text: Text-based fallback for testing
-
-    Connect:
-    ws://localhost:8000/api/v1/coaching/sessions/{id}/ws?token=TOKEN&mode=audio
-
-    Frontend sends:
-    - {type: "audio_chunk", data: {audio: "base64...", question_number: 1}}
-    - {type: "text_answer", data: {answer: "...", question_number: 1, time_taken_seconds: 45}}
-    - {type: "end_session", data: {}}
-    - {type: "ping", data: {}}
-
-    Backend sends:
-    - {type: "session_ready", data: {...}}
-    - {type: "audio_response", data: {data: "base64...", mime_type: "audio/pcm;rate=24000"}}
-    - {type: "transcript", data: {role: "interviewer", text: "..."}}
-    - {type: "evaluation", data: {...}}
-    - {type: "timer", data: {remaining_seconds: 90, total_seconds: 120}}
-    - {type: "session_complete", data: {iri_score: {...}}}
-    """
-    # Authenticate
     user = await get_user_from_token(token)
     if not user:
         await websocket.close(code=4001, reason="Unauthorized")
@@ -104,7 +68,6 @@ async def coaching_websocket(
 
     try:
         async with AsyncSessionLocal() as db:
-            # Verify session
             session = await db.get(CoachingSession, session_id)
             if not session or str(session.user_id) != str(user.id):
                 await handler.send_error("Session not found.")
@@ -116,13 +79,9 @@ async def coaching_websocket(
                 await websocket.close(code=4000)
                 return
 
-            # Load questions
             q_result = await db.execute(
                 select(SessionMessage)
-                .where(
-                    SessionMessage.session_id == session_id,
-                    SessionMessage.role == "interviewer",
-                )
+                .where(SessionMessage.session_id == session_id, SessionMessage.role == "interviewer")
                 .order_by(SessionMessage.sequence_no)
             )
             question_messages = q_result.scalars().all()
@@ -141,7 +100,6 @@ async def coaching_websocket(
                 await websocket.close()
                 return
 
-            # Load job details for Gemini Live
             job = await db.get(JobListing, session.target_job_id)
             company_name = "the company"
             if job and job.company_id:
@@ -149,12 +107,12 @@ async def coaching_websocket(
                 if company:
                     company_name = company.name
 
-            # Get user IRI score
             from app.services.coaching_service import _get_user_iri
             iri_score = await _get_user_iri(db, user.id)
 
-        # ── Initialize Gemini Live (audio mode) ───────────────────────────────
-        # ── Initialize Gemini Live (audio mode) ───────────────────────────────
+        # ── Determine final mode ──────────────────────────────────────────────
+        final_mode = "text"  # default to text
+
         if mode == "audio":
             await handler.send(MSG_SESSION_READY, {
                 "session_id": str(session_id),
@@ -162,7 +120,6 @@ async def coaching_websocket(
                 "mode": "audio",
                 "message": "Connecting to AI interviewer...",
             })
-
             try:
                 connected = await asyncio.wait_for(
                     handler.init_gemini_live(
@@ -174,38 +131,32 @@ async def coaching_websocket(
                     ),
                     timeout=15.0
                 )
-            except asyncio.TimeoutError:
-                connected = False
-                print("[WS] Gemini Live connection timed out, switching to text mode")
+                if connected:
+                    final_mode = "audio"
             except Exception as e:
-                connected = False
-                print(f"[WS] Gemini Live error: {e}")
+                print(f"[WS] Gemini Live failed: {e}, falling back to text mode")
+                final_mode = "text"
 
-            if not connected:
-                # Switch to text mode silently
-                mode = "text"
-                print("[WS] Falling back to text mode")
-            else:
-                await handler.send(MSG_SESSION_READY, {
-                    "session_id": str(session_id),
-                    "total_questions": len(handler.questions),
-                    "mode": "audio",
-                    "message": "AI interviewer connected! Interview starting...",
-                    "personality": handler.gemini_session.personality["level"],
-                })
+        # ── Start audio mode ──────────────────────────────────────────────────
+        if final_mode == "audio":
+            await handler.send(MSG_SESSION_READY, {
+                "session_id": str(session_id),
+                "total_questions": len(handler.questions),
+                "mode": "audio",
+                "message": "AI interviewer connected! Interview starting...",
+                "personality": handler.gemini_session.personality["level"],
+            })
+            await handler.start_gemini_interview()
 
-                # Start Gemini Live interview
-                await handler.start_gemini_interview()
-
-        # ── Text mode fallback ────────────────────────────────────────────────
-        if mode == "text":
+        # ── Start text mode ───────────────────────────────────────────────────
+        else:
+            final_mode = "text"
             await handler.send(MSG_SESSION_READY, {
                 "session_id": str(session_id),
                 "total_questions": len(handler.questions),
                 "mode": "text",
                 "message": "Text mode active. Interview starting...",
             })
-
             await asyncio.sleep(1)
             first_q = handler.questions[0]
             await handler.send(MSG_QUESTION, {
@@ -228,22 +179,16 @@ async def coaching_websocket(
                 msg_type = raw.get("type")
                 msg_data = raw.get("data", {})
 
-                # Ping
                 if msg_type == MSG_PING:
                     await handler.send(MSG_PONG, {"status": "alive"})
 
-                # Audio chunk from microphone
                 elif msg_type == MSG_AUDIO_CHUNK:
-                    audio_b64 = msg_data.get("audio", "")
-                    if audio_b64 and mode == "audio":
-                        # Decode base64 audio and send to Gemini Live
-                        audio_bytes = base64.b64decode(audio_b64)
-                        await handler.audio_input_queue.put(audio_bytes)
+                    if final_mode == "audio":
+                        audio_b64 = msg_data.get("audio", "")
+                        if audio_b64:
+                            audio_bytes = base64.b64decode(audio_b64)
+                            await handler.audio_input_queue.put(audio_bytes)
 
-                        # Also track question number for evaluation
-                        question_number = msg_data.get("question_number", 1)
-
-                # Text answer
                 elif msg_type == MSG_TEXT_ANSWER:
                     question_number = msg_data.get("question_number", 1)
                     answer = msg_data.get("answer", "").strip()
@@ -255,7 +200,6 @@ async def coaching_websocket(
 
                     await handler.stop_timer()
 
-                    # Evaluate with Gemini
                     async with AsyncSessionLocal() as db:
                         from app.services.coaching_service import submit_answer
                         result = await submit_answer(
@@ -267,20 +211,13 @@ async def coaching_websocket(
                             time_taken_seconds=time_taken,
                         )
 
-                    handler.evaluations.append(
-                        result.get("evaluation", {})
-                    )
-
+                    handler.evaluations.append(result.get("evaluation", {}))
                     await handler.send(MSG_EVALUATION, result)
 
-                    # If in audio mode, also send text to Gemini Live
-                    if mode == "audio" and handler.gemini_session:
-                        await handler.gemini_session.send_text(
-                            f"The candidate answered: {answer}"
-                        )
+                    if final_mode == "audio" and handler.gemini_session:
+                        await handler.gemini_session.send_text(f"The candidate answered: {answer}")
 
-                    # Send next question in text mode
-                    if not result.get("is_last_question") and mode == "text":
+                    if not result.get("is_last_question") and final_mode == "text":
                         await asyncio.sleep(2)
                         next_q = result.get("next_question")
                         if next_q:
@@ -288,9 +225,7 @@ async def coaching_websocket(
                                 "question_number": next_q["question_number"],
                                 "question": next_q["question"],
                                 "type": next_q.get("type", "behavioral"),
-                                "time_limit_seconds": next_q.get(
-                                    "time_limit_seconds", 120
-                                ),
+                                "time_limit_seconds": next_q.get("time_limit_seconds", 120),
                                 "hints": next_q.get("hints", []),
                                 "total_questions": len(handler.questions),
                             })
@@ -299,36 +234,34 @@ async def coaching_websocket(
                                 question_number=next_q["question_number"],
                             )
 
-                # End session
                 elif msg_type == MSG_END_SESSION:
                     await handler.stop_timer()
-
                     async with AsyncSessionLocal() as db:
                         from app.services.coaching_service import end_session
-                        final_result = await end_session(
-                            db=db,
-                            user=user,
-                            session_id=session_id,
-                        )
-
+                        final_result = await end_session(db=db, user=user, session_id=session_id)
                     await handler.send(MSG_SESSION_COMPLETE, final_result)
                     handler.is_active = False
                     break
 
                 else:
-                    await handler.send_error(f"Unknown message: {msg_type}")
+                    await handler.send_error(f"Unknown message type: {msg_type}")
 
             except WebSocketDisconnect:
                 print(f"[WS] {user.email} disconnected")
                 handler.is_active = False
                 break
-
             except Exception as e:
-                print(f"[WS] Error: {e}")
+                print(f"[WS] Error in message loop: {e}")
                 await handler.send_error(str(e))
 
     except WebSocketDisconnect:
         print(f"[WS] Connection closed for session {session_id}")
+    except Exception as e:
+        print(f"[WS] Fatal error: {e}")
+        try:
+            await handler.send_error(f"Server error: {str(e)}")
+        except Exception:
+            pass
     finally:
         await handler.cleanup()
         print(f"[WS] Session {session_id} cleaned up")
