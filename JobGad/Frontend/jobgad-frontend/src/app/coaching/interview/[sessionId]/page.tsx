@@ -72,8 +72,6 @@ export default function InterviewRoom() {
   const answerStart          = useRef(Date.now())
   const transcriptRef        = useRef<HTMLDivElement>(null)
   const currentAudioQuestion = useRef(1)
-  const recordingDuration = useRef(0)
-  const recordingStart    = useRef(0)
 
   const { enqueueAudio, stopAudio }                                       = useAudioPlayer()
   const { startRecording, stopRecording, requestPermission, isRecording } = useMicrophone()
@@ -186,7 +184,7 @@ export default function InterviewRoom() {
     }
   }
 
-  const recordingDuration = useRef(0)
+const recordingDuration = useRef(0)
 const recordingStart    = useRef(0)
 
 async function handleStartRecording() {
@@ -224,6 +222,7 @@ async function handleStopAndEvaluate() {
     sendTextAnswer('__audio_complete__', qNum, timeTaken)
     setState('evaluating')
   }
+
   function handleSubmitText() {
     if (!textAnswer.trim() || !question) return
     const timeTaken = Math.floor((Date.now() - answerStart.current) / 1000)
