@@ -137,6 +137,7 @@ export default function InterviewRoom() {
         }
         break
     }
+  }
   }, [mode, enqueueAudio, stopAudio])
 
   const { connect, disconnect, sendAudioChunk, sendTextAnswer, endSession, isConnected } =
