@@ -78,11 +78,16 @@ export default function InterviewRoom() {
   const handleMessage = useCallback((msg: { type: string; data: Record<string, unknown> }) => {
     switch (msg.type) {
       case 'session_ready':
-        setState('ready')
         setMode((msg.data.mode as 'audio' | 'text') || 'audio')
         setTotalQ((msg.data.total_questions as number) || 5)
         setPersonality((msg.data.personality as string) || 'friendly')
         setStatusMsg((msg.data.message as string) || 'AI interviewer ready!')
+        // In audio mode go straight to interviewing — AI speaks the question
+        if (msg.data.mode === 'audio' && msg.data.personality) {
+            setState('interviewing')
+        } else {
+            setState('ready')
+        }
         break
       case 'question': {
         const q = msg.data as unknown as Question
@@ -309,13 +314,13 @@ export default function InterviewRoom() {
           </div>
 
           {/* Answer controls */}
-          {question && state === 'interviewing' && (
+          {state === 'interviewing' && (
             <div className="card">
               {mode === 'audio' ? (
                 <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-                    {isRecording ? 'Recording — release to stop' : 'Hold button to answer'}
-                  </p>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                        {isRecording ? 'Recording — release to stop' : question ? 'Hold button to answer' : 'Listen to the AI interviewer then hold to speak'}
+                    </p>
                   <button
                     onMouseDown={handleStartRecording}
                     onMouseUp={stopRecording}
