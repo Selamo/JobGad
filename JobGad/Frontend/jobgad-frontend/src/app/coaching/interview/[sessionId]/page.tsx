@@ -72,6 +72,8 @@ export default function InterviewRoom() {
   const answerStart          = useRef(Date.now())
   const transcriptRef        = useRef<HTMLDivElement>(null)
   const currentAudioQuestion = useRef(1)
+  const recordingStart       = useRef(0)
+  const recordingDuration    = useRef(0)
 
   const { enqueueAudio, stopAudio }                                       = useAudioPlayer()
   const { startRecording, stopRecording, requestPermission, isRecording } = useMicrophone()
@@ -174,23 +176,7 @@ export default function InterviewRoom() {
   async function handleStartRecording() {
     try {
       await requestPermission()
-      answerStart.current = Date.now()
-      const qNum = question?.question_number ?? currentAudioQuestion.current
-      await startRecording((chunk) => {
-        sendAudioChunk(chunk, qNum)
-      })
-    } catch {
-      setError('Microphone access denied. Switch to text mode.')
-    }
-  }
-
-const recordingDuration = useRef(0)
-const recordingStart    = useRef(0)
-
-async function handleStartRecording() {
-    try {
-      await requestPermission()
-      answerStart.current   = Date.now()
+      answerStart.current    = Date.now()
       recordingStart.current = Date.now()
       const qNum = question?.question_number ?? currentAudioQuestion.current
       await startRecording((chunk) => {
@@ -201,22 +187,20 @@ async function handleStartRecording() {
     }
   }
 
-async function handleStopAndEvaluate() {
+  async function handleStopAndEvaluate() {
     stopRecording()
     if (mode !== 'audio') return
 
     const duration = Date.now() - recordingStart.current
     recordingDuration.current = duration
 
-    // Must have recorded for at least 1.5 seconds to count as an answer
-    if (duration < 1500) {
-      return
-    }
+    // Must record for at least 1.5 seconds
+    if (duration < 1500) return
 
-    const qNum     = question?.question_number ?? currentAudioQuestion.current
+    const qNum      = question?.question_number ?? currentAudioQuestion.current
     const timeTaken = Math.floor((Date.now() - answerStart.current) / 1000)
 
-    // Wait for last audio chunks to arrive
+    // Wait for last audio chunks to be sent
     await new Promise(r => setTimeout(r, 800))
 
     sendTextAnswer('__audio_complete__', qNum, timeTaken)
