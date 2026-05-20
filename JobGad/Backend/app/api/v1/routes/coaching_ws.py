@@ -154,6 +154,7 @@ async def coaching_websocket(
             iri_score = await _get_user_iri(db, user.id)
 
         # ── Initialize Gemini Live (audio mode) ───────────────────────────────
+        # ── Initialize Gemini Live (audio mode) ───────────────────────────────
         if mode == "audio":
             await handler.send(MSG_SESSION_READY, {
                 "session_id": str(session_id),
@@ -162,19 +163,28 @@ async def coaching_websocket(
                 "message": "Connecting to AI interviewer...",
             })
 
-            connected = await handler.init_gemini_live(
-                job_title=job.title if job else "the role",
-                company_name=company_name,
-                job_requirements=job.requirements or "" if job else "",
-                iri_score=iri_score,
-                session_type=session.session_type or "mixed",
-            )
+            try:
+                connected = await asyncio.wait_for(
+                    handler.init_gemini_live(
+                        job_title=job.title if job else "the role",
+                        company_name=company_name,
+                        job_requirements=job.requirements or "" if job else "",
+                        iri_score=iri_score,
+                        session_type=session.session_type or "mixed",
+                    ),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                connected = False
+                print("[WS] Gemini Live connection timed out, switching to text mode")
+            except Exception as e:
+                connected = False
+                print(f"[WS] Gemini Live error: {e}")
 
             if not connected:
-                await handler.send_error(
-                    "Could not connect to Gemini Live. Switching to text mode."
-                )
+                # Switch to text mode silently
                 mode = "text"
+                print("[WS] Falling back to text mode")
             else:
                 await handler.send(MSG_SESSION_READY, {
                     "session_id": str(session_id),

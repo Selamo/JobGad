@@ -1,28 +1,28 @@
 """
 Gemini Live API — real-time audio conversation handler for interview coaching.
-Uses Google's Gemini Live API for bidirectional audio streaming.
 """
 import asyncio
 import base64
-import json
-from typing import AsyncGenerator, Optional
-import google.generativeai as genai
-from google.genai import types
+from typing import Optional
+
 from app.core.config import settings
 
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_LIVE_AVAILABLE = True
+except ImportError:
+    GEMINI_LIVE_AVAILABLE = False
+    genai = None
+    types = None
+    print("[Gemini Live] google-genai package not available, audio mode disabled")
 
 
 def get_interviewer_personality(iri_score: float) -> dict:
-    """
-    Get interviewer personality config based on IRI score.
-    As score improves, personality becomes more formal.
-    """
     if iri_score < 30:
         return {
             "level": "very_friendly",
-            "voice": "Aoede",  # Warm, friendly voice
+            "voice": "Aoede",
             "style": (
                 "You are a very warm and encouraging interview coach. "
                 "You speak slowly and clearly. "
@@ -45,7 +45,7 @@ def get_interviewer_personality(iri_score: float) -> dict:
     elif iri_score < 70:
         return {
             "level": "balanced",
-            "voice": "Charon",  # More neutral voice
+            "voice": "Charon",
             "style": (
                 "You are a balanced professional interviewer. "
                 "You are neither too friendly nor too strict. "
@@ -56,7 +56,7 @@ def get_interviewer_personality(iri_score: float) -> dict:
     elif iri_score < 85:
         return {
             "level": "formal",
-            "voice": "Fenrir",  # More formal voice
+            "voice": "Fenrir",
             "style": (
                 "You are a formal corporate interviewer. "
                 "You maintain strict professionalism. "
@@ -81,65 +81,50 @@ def build_interviewer_system_prompt(
     job_title: str,
     company_name: str,
     job_requirements: str,
-    questions: list[dict],
+    questions: list,
     personality: dict,
     session_type: str,
 ) -> str:
-    """
-    Build the system prompt for the Gemini Live interviewer.
-    """
     questions_text = "\n".join([
         f"Q{q['question_number']}: {q['question']} "
         f"(Time limit: {q.get('time_limit_seconds', 120)}s)"
         for q in questions
     ])
 
-    return f"""
-    You are an AI interview coach conducting a {session_type} interview.
-    
-    PERSONALITY: {personality['style']}
-    
-    JOB DETAILS:
-    - Position: {job_title}
-    - Company: {company_name}
-    - Key Requirements: {job_requirements[:300]}
-    
-    YOUR INTERVIEW QUESTIONS (ask them in order):
-    {questions_text}
-    
-    INTERVIEW RULES:
-    1. Start by greeting the candidate warmly based on your personality level
-    2. Ask ONE question at a time in order
-    3. After the candidate answers, give brief feedback (2-3 sentences max)
-    4. Then move to the next question
-    5. After all {len(questions)} questions, give a brief closing statement
-    6. Say "INTERVIEW_COMPLETE" when you are done with all questions
-    7. Keep your voice natural and conversational
-    8. Do NOT read out the time limits to the candidate
-    9. If the candidate is silent for more than 10 seconds, gently prompt them
-    10. Speak clearly and at a moderate pace
-    
-    FEEDBACK STYLE:
-    - After each answer say something like: 
-      "Good answer! I liked how you..." or 
-      "That's a solid start. To make it stronger, you could..."
-    - Keep feedback brief before moving to next question
-    
-    Begin by introducing yourself and asking the first question.
-    """
+    return f"""You are an AI interview coach conducting a {session_type} interview.
+
+PERSONALITY: {personality['style']}
+
+JOB DETAILS:
+- Position: {job_title}
+- Company: {company_name}
+- Key Requirements: {job_requirements[:300]}
+
+YOUR INTERVIEW QUESTIONS (ask them in order):
+{questions_text}
+
+INTERVIEW RULES:
+1. Start by greeting the candidate warmly based on your personality level
+2. Ask ONE question at a time in order
+3. After the candidate answers, give brief feedback (2-3 sentences max)
+4. Then move to the next question
+5. After all {len(questions)} questions, give a brief closing statement
+6. Say "INTERVIEW_COMPLETE" when you are done with all questions
+7. Keep your voice natural and conversational
+8. Do NOT read out the time limits to the candidate
+9. If the candidate is silent for more than 10 seconds, gently prompt them
+
+Begin by introducing yourself and asking the first question."""
 
 
 class GeminiLiveSession:
-    """
-    Manages a Gemini Live API session for real-time audio interview.
-    """
 
     def __init__(
         self,
         job_title: str,
         company_name: str,
         job_requirements: str,
-        questions: list[dict],
+        questions: list,
         iri_score: float = 0,
         session_type: str = "mixed",
     ):
@@ -152,14 +137,16 @@ class GeminiLiveSession:
         self.personality = get_interviewer_personality(iri_score)
         self.session = None
         self.is_connected = False
-        self.current_question = 1
+        self.client = None
+        self.config = None
         self.transcript = []
 
     async def connect(self) -> bool:
-        """
-        Connect to Gemini Live API.
-        Returns True if successful.
-        """
+        # Check if Gemini Live package is available
+        if not GEMINI_LIVE_AVAILABLE:
+            print("[Gemini Live] Package not available — audio mode disabled")
+            return False
+
         try:
             client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -172,7 +159,6 @@ class GeminiLiveSession:
                 session_type=self.session_type,
             )
 
-            # Configure Live API session
             config = types.LiveConnectConfig(
                 response_modalities=["AUDIO"],
                 speech_config=types.SpeechConfig(
@@ -190,10 +176,7 @@ class GeminiLiveSession:
             self.client = client
             self.config = config
             self.is_connected = True
-            print(
-                f"[Gemini Live] Configured for {self.job_title} "
-                f"with {self.personality['level']} personality"
-            )
+            print(f"[Gemini Live] Configured for {self.job_title} with {self.personality['level']} personality")
             return True
 
         except Exception as e:
@@ -208,106 +191,51 @@ class GeminiLiveSession:
         text_output_queue: asyncio.Queue,
         control_queue: asyncio.Queue,
     ):
-        """
-        Run the live interview session.
-        
-        audio_input_queue: receives raw audio bytes from microphone
-        audio_output_queue: sends audio bytes to frontend for playback
-        text_output_queue: sends transcript text to frontend
-        control_queue: receives control signals (stop, pause, etc.)
-        """
-        try:
-            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        if not GEMINI_LIVE_AVAILABLE or not self.client:
+            await text_output_queue.put({"type": "error", "message": "Audio mode not available"})
+            return
 
-            async with client.aio.live.connect(
+        try:
+            async with self.client.aio.live.connect(
                 model="models/gemini-2.0-flash-live-001",
                 config=self.config,
             ) as session:
                 self.session = session
                 print("[Gemini Live] Connected to Gemini Live API")
 
-                # Send initial trigger to start the interview
                 await session.send(
                     input="Please begin the interview now.",
                     end_of_turn=True,
                 )
 
-                # Run send and receive concurrently
                 await asyncio.gather(
-                    self._send_audio(
-                        session,
-                        audio_input_queue,
-                        control_queue,
-                    ),
-                    self._receive_audio(
-                        session,
-                        audio_output_queue,
-                        text_output_queue,
-                        control_queue,
-                    ),
+                    self._send_audio(session, audio_input_queue, control_queue),
+                    self._receive_audio(session, audio_output_queue, text_output_queue, control_queue),
                 )
 
         except Exception as e:
             print(f"[Gemini Live] Session error: {e}")
-            await text_output_queue.put({
-                "type": "error",
-                "message": str(e),
-            })
+            await text_output_queue.put({"type": "error", "message": str(e)})
 
-    async def _send_audio(
-        self,
-        session,
-        audio_input_queue: asyncio.Queue,
-        control_queue: asyncio.Queue,
-    ):
-        """
-        Send audio chunks from the microphone to Gemini Live.
-        Reads from audio_input_queue continuously.
-        """
+    async def _send_audio(self, session, audio_input_queue, control_queue):
         while True:
             try:
-                # Check for control signals
                 try:
                     control = control_queue.get_nowait()
                     if control == "stop":
-                        print("[Gemini Live] Stopping audio send")
                         break
                 except asyncio.QueueEmpty:
                     pass
 
-                # Get audio chunk from queue
                 try:
-                    audio_chunk = await asyncio.wait_for(
-                        audio_input_queue.get(),
-                        timeout=0.1,
-                    )
-
+                    audio_chunk = await asyncio.wait_for(audio_input_queue.get(), timeout=0.1)
                     if audio_chunk is None:
-                        # None signals end of stream
-                        await session.send(
-                            input=types.LiveClientRealtimeInput(
-                                media_chunks=[
-                                    types.Blob(
-                                        data=b"",
-                                        mime_type="audio/pcm;rate=16000",
-                                    )
-                                ]
-                            )
-                        )
                         break
-
-                    # Send audio to Gemini
                     await session.send(
                         input=types.LiveClientRealtimeInput(
-                            media_chunks=[
-                                types.Blob(
-                                    data=audio_chunk,
-                                    mime_type="audio/pcm;rate=16000",
-                                )
-                            ]
+                            media_chunks=[types.Blob(data=audio_chunk, mime_type="audio/pcm;rate=16000")]
                         )
                     )
-
                 except asyncio.TimeoutError:
                     continue
 
@@ -315,21 +243,9 @@ class GeminiLiveSession:
                 print(f"[Gemini Live] Send audio error: {e}")
                 break
 
-    async def _receive_audio(
-        self,
-        session,
-        audio_output_queue: asyncio.Queue,
-        text_output_queue: asyncio.Queue,
-        control_queue: asyncio.Queue,
-    ):
-        """
-        Receive audio and text responses from Gemini Live.
-        Puts audio chunks in audio_output_queue for playback.
-        Puts text in text_output_queue for display.
-        """
+    async def _receive_audio(self, session, audio_output_queue, text_output_queue, control_queue):
         async for response in session.receive():
             try:
-                # Check for control signals
                 try:
                     control = control_queue.get_nowait()
                     if control == "stop":
@@ -337,9 +253,7 @@ class GeminiLiveSession:
                 except asyncio.QueueEmpty:
                     pass
 
-                # Handle audio response
                 if response.data:
-                    # Raw audio bytes — send to frontend for playback
                     audio_b64 = base64.b64encode(response.data).decode()
                     await audio_output_queue.put({
                         "type": "audio_chunk",
@@ -347,49 +261,26 @@ class GeminiLiveSession:
                         "mime_type": "audio/pcm;rate=24000",
                     })
 
-                # Handle text response
                 if response.text:
                     text = response.text
-                    self.transcript.append({
-                        "role": "interviewer",
-                        "text": text,
-                    })
-
-                    await text_output_queue.put({
-                        "type": "transcript",
-                        "role": "interviewer",
-                        "text": text,
-                    })
-
-                    # Check if interview is complete
+                    self.transcript.append({"role": "interviewer", "text": text})
+                    await text_output_queue.put({"type": "transcript", "role": "interviewer", "text": text})
                     if "INTERVIEW_COMPLETE" in text:
-                        await text_output_queue.put({
-                            "type": "interview_complete",
-                            "message": "Interview completed by AI",
-                        })
+                        await text_output_queue.put({"type": "interview_complete"})
                         break
 
-                # Handle turn completion
-                if response.server_content:
-                    if response.server_content.turn_complete:
-                        await text_output_queue.put({
-                            "type": "turn_complete",
-                        })
+                if response.server_content and response.server_content.turn_complete:
+                    await text_output_queue.put({"type": "turn_complete"})
 
             except Exception as e:
                 print(f"[Gemini Live] Receive error: {e}")
                 break
 
     async def send_text(self, text: str):
-        """Send a text message to Gemini (for text fallback mode)."""
         if self.session:
-            await self.session.send(
-                input=text,
-                end_of_turn=True,
-            )
+            await self.session.send(input=text, end_of_turn=True)
 
     async def disconnect(self):
-        """Disconnect from Gemini Live."""
         self.is_connected = False
         self.session = None
         print("[Gemini Live] Disconnected")
