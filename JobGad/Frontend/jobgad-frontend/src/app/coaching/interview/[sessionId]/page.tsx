@@ -82,13 +82,10 @@ export default function InterviewRoom() {
         setTotalQ((msg.data.total_questions as number) || 5)
         setPersonality((msg.data.personality as string) || 'friendly')
         setStatusMsg((msg.data.message as string) || 'AI interviewer ready!')
-        // In audio mode go straight to interviewing — AI speaks the question
-        if (msg.data.mode === 'audio' && msg.data.personality) {
-            setState('interviewing')
-        } else {
-            setState('ready')
-        }
+        // Move to interviewing state immediately so mic button shows
+        setState('interviewing')
         break
+
       case 'question': {
         const q = msg.data as unknown as Question
         setQuestion(q)
@@ -97,6 +94,7 @@ export default function InterviewRoom() {
         setTimerSec(q.time_limit_seconds)
         setTotalSec(q.time_limit_seconds)
         setState('interviewing')
+        setDoneQ(prev => prev)
         answerStart.current = Date.now()
         if (mode === 'text' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
           const u = new SpeechSynthesisUtterance(q.question)
@@ -105,44 +103,49 @@ export default function InterviewRoom() {
         }
         break
       }
+
       case 'audio_response': {
         const audioData = (msg.data as { data: string }).data
         if (audioData) enqueueAudio(audioData)
         setState('interviewing')
         break
       }
+
       case 'transcript':
         setTranscript(p => [...p, { role: msg.data.role as string, text: msg.data.text as string }])
         setTimeout(() => {
           if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
         }, 50)
         break
+
       case 'timer':
         setTimerSec(msg.data.remaining_seconds as number)
         break
+
       case 'evaluation':
         setState('evaluating')
         if (msg.data.evaluation) setEvaluation(msg.data.evaluation as Evaluation)
         setDoneQ(msg.data.question_number as number)
         setIsLastQ(!!(msg.data.is_last_question))
         break
+
       case 'session_complete':
         stopAudio()
         setIriResult((msg.data as { iri_score: IRIResult }).iri_score)
         setState('completed')
         break
-      case 'error': {
+
+      case 'error':
         const errMsg = (msg.data.message as string) || 'Something went wrong.'
-        // If switching to text mode, don't show error screen
-        if (errMsg.toLowerCase().includes('switching to text') || errMsg.toLowerCase().includes('text mode')) {
-            console.log('[Interview] Switching to text mode:', errMsg)
-        } else {
-            setError(errMsg)
-            setState('error')
+        if (!errMsg.toLowerCase().includes('text mode') && !errMsg.toLowerCase().includes('switching')) {
+          setError(errMsg)
+          setState('error')
         }
         break
+
+      default:
+        break
     }
-  }
   }, [mode, enqueueAudio, stopAudio])
 
   const { connect, disconnect, sendAudioChunk, sendTextAnswer, endSession, isConnected } =
@@ -258,7 +261,9 @@ export default function InterviewRoom() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{doneQ} / {totalQ} questions</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {mode === 'audio' ? `${totalQ} questions` : `${doneQ} / ${totalQ} questions`}
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {isConnected
               ? <Wifi size={14} style={{ color: 'var(--green)' }} />
@@ -281,8 +286,20 @@ export default function InterviewRoom() {
           <div className="card">
             {!question ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 12 }}>
-                <div className="spinner spinner-lg" />
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{statusMsg}</p>
+                  {state === 'interviewing' && mode === 'audio' ? (
+                      <>
+                          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(37,99,235,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--blue-core)', animation: 'pulse 1.5s infinite' }} />
+                          </div>
+                          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>AI interviewer is speaking...</p>
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Listen carefully then hold the mic button to respond</p>
+                      </>
+                  ) : (
+                      <>
+                          <div className="spinner spinner-lg" />
+                          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{statusMsg}</p>
+                      </>
+                  )}
               </div>
             ) : (
               <>
