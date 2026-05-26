@@ -12,9 +12,9 @@ import {
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
-  const [data, setData]         = useState<any>(null)
+  const [data, setData]               = useState<any>(null)
   const [dataLoading, setDataLoading] = useState(true)
-  const [error, setError]       = useState('')
+  const [error, setError]             = useState('')
 
   useEffect(() => {
     if (authLoading) return
@@ -30,21 +30,11 @@ export default function DashboardPage() {
         } else if (user.role === 'hr') {
           try {
             const res = await dashboard.hr()
-            // If backend returns error object, show pending screen
-            if (res && (res as any).error) {
-              setData({ error: true, message: (res as any).message })
-            } else {
-              setData(res)
-            }
+            setData(res)
           } catch (hrErr: any) {
-            // Check if it is a 404 meaning HR profile not yet created
-            if (hrErr.message?.includes('404') || hrErr.message?.includes('not found') || hrErr.message?.includes('HR profile')) {
-              setData({ error: true, message: 'pending' })
-            } else {
-              setData({ error: true, message: hrErr.message })
-            }
+            setData({ error: true, message: hrErr.message })
           }
-} else {
+        } else {
           const res = await dashboard.graduate()
           setData(res)
         }
@@ -58,7 +48,6 @@ export default function DashboardPage() {
     fetchData()
   }, [user, authLoading])
 
-  // Show skeleton while auth or data is loading
   if (authLoading || dataLoading) {
     return (
       <AppShell title="Dashboard">
@@ -80,17 +69,13 @@ export default function DashboardPage() {
           icon={<AlertCircle size={32} />}
           title="Failed to load dashboard"
           description={error}
-          action={
-            <button className="btn btn-primary" onClick={() => window.location.reload()}>
-              Retry
-            </button>
-          }
+          action={<button className="btn btn-primary" onClick={() => window.location.reload()}>Retry</button>}
         />
       </AppShell>
     )
   }
 
-  // ── SUPERADMIN / ADMIN ────────────────────────────────────────────────────
+  // ── SUPERADMIN ─────────────────────────────────────────────────────────────
   if (user?.role === 'superadmin' || user?.role === 'admin') {
     const totalUsers       = data?.users?.total ?? 0
     const totalCompanies   = data?.companies?.total ?? 0
@@ -109,31 +94,24 @@ export default function DashboardPage() {
           </Link>
         }
       >
-        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14, marginBottom: 24 }}>
           <StatCard label="Total Users"       value={totalUsers}       color="var(--blue-bright)" />
-          <StatCard label="Companies"         value={totalCompanies}   color="var(--text-primary)" />
+          <StatCard label="Companies"         value={totalCompanies} />
           <StatCard label="Active Jobs"       value={totalJobs}        color="var(--cyan-bright)" />
-          <StatCard label="Applications"      value={totalApps}        color="var(--text-primary)" />
+          <StatCard label="Applications"      value={totalApps} />
           <StatCard label="Pending Companies" value={pendingCompanies} color={pendingCompanies > 0 ? 'var(--yellow)' : 'var(--green)'} />
           <StatCard label="Pending HR"        value={pendingHR}        color={pendingHR > 0 ? 'var(--yellow)' : 'var(--green)'} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-
-          {/* Users by role */}
           <div className="card">
-            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
-              Users by Role
-            </h3>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Users by Role</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {Object.keys(data?.users?.by_role ?? {}).length > 0
                 ? Object.entries(data.users.by_role).map(([role, count]) => (
                     <div key={role} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
                       <span style={{ fontSize: 13, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{role}</span>
-                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 600, color: 'var(--blue-bright)' }}>
-                        {count as number}
-                      </span>
+                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 600, color: 'var(--blue-bright)' }}>{count as number}</span>
                     </div>
                   ))
                 : <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>No users yet</p>
@@ -141,11 +119,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Platform overview */}
           <div className="card">
-            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
-              Platform Overview
-            </h3>
+            <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Platform Overview</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { label: 'Approved Companies', value: data?.companies?.by_status?.approved ?? 0, color: 'var(--green)' },
@@ -162,7 +137,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Pending alerts */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {pendingCompanies > 0 && (
             <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -177,7 +151,6 @@ export default function DashboardPage() {
               </Link>
             </div>
           )}
-
           {pendingHR > 0 && (
             <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -191,13 +164,10 @@ export default function DashboardPage() {
               </Link>
             </div>
           )}
-
           {pendingCompanies === 0 && pendingHR === 0 && (
             <div style={{ textAlign: 'center', padding: '32px 24px' }}>
               <CheckCircle2 size={32} style={{ color: 'var(--green)', margin: '0 auto 12px' }} />
-              <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                No pending approvals — everything is up to date.
-              </p>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>No pending approvals — everything is up to date.</p>
             </div>
           )}
         </div>
@@ -205,118 +175,117 @@ export default function DashboardPage() {
     )
   }
 
-  // ── HR DASHBOARD ──────────────────────────────────────────────────────────
+  // ── HR DASHBOARD ───────────────────────────────────────────────────────────
   if (user?.role === 'hr') {
-    // Backend returns error if HR profile not created yet
-    if (!data || (data as any)?.error) {
-        const isPending = !(data as any)?.message || (data as any)?.message === 'pending'
-        return (
-          <AppShell
-            title={`Welcome, ${user?.full_name?.split(' ')[0] ?? 'there'}`}
-            subtitle="Your account status"
-          >
-            <div className="card" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center', padding: 40 }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                <Building2 size={24} style={{ color: 'var(--yellow)' }} />
-              </div>
-              <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
-                Awaiting Admin Approval
-              </h2>
-              <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 24 }}>
-                Your company registration has been submitted and is under review. You will be able to post jobs once approved.
-              </p>
-              <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', textAlign: 'left', marginBottom: 20 }}>
-                <p className="label-caps" style={{ marginBottom: 8 }}>What happens next</p>
-                {[
-                  'Admin reviews your company registration',
-                  'You receive an email confirmation once approved',
-                  'Log out and back in to activate your HR dashboard',
-                ].map((s, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
-                    <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--yellow)', flexShrink: 0 }}>0{i + 1}</span>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s}</span>
-                  </div>
-                ))}
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                If your company has already been approved, try logging out and back in.
-              </p>
-              <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
-                Refresh page
-              </button>
-            </div>
-          </AppShell>
-        )
-      }
+    // Show pending screen if error or company pending
+    const hasError    = !data || (data as any)?.error
+    const isPending   = (data as any)?.message?.toLowerCase().includes('pending') ||
+                        (data as any)?.message?.toLowerCase().includes('not found') ||
+                        (data as any)?.message?.toLowerCase().includes('register')
 
-        const d = data as HRDashboard
-        return (
-          <AppShell
-            title={`Welcome, ${d?.user?.full_name?.split(' ')[0] ?? user?.full_name?.split(' ')[0] ?? 'there'}`}
-            subtitle="Your recruitment overview"
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
-              <StatCard label="Active Jobs"   value={d?.jobs?.active              ?? 0} color="var(--blue-bright)" />
-              <StatCard label="Total Jobs"    value={d?.jobs?.total               ?? 0} />
-              <StatCard label="Applications"  value={d?.applications?.total       ?? 0} />
-              <StatCard label="Shortlisted"   value={d?.applications?.shortlisted ?? 0} color="var(--green)" />
+    if (hasError || isPending) {
+      return (
+        <AppShell
+          title={`Welcome, ${user?.full_name?.split(' ')[0] ?? 'there'}`}
+          subtitle="Your account status"
+        >
+          <div className="card" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center', padding: 40 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <Building2 size={24} style={{ color: 'var(--yellow)' }} />
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Building2 size={16} style={{ color: 'var(--blue-bright)' }} />
-                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Company</h3>
+            <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
+              Awaiting Admin Approval
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 24 }}>
+              Your company registration has been submitted and is under review. You will be able to post jobs once approved.
+            </p>
+            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '14px 18px', textAlign: 'left', marginBottom: 20 }}>
+              <p className="label-caps" style={{ marginBottom: 8 }}>What happens next</p>
+              {[
+                'Admin reviews your company registration',
+                'You receive an email confirmation once approved',
+                'Log out and back in to activate your HR dashboard',
+              ].map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--yellow)', flexShrink: 0 }}>0{i + 1}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s}</span>
                 </div>
-                <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-                  {d?.company?.name ?? 'Your Company'}
-                </p>
-                <Badge label={d?.company?.status ?? 'pending'} />
-                {(d?.company?.status === 'pending' || !d?.company?.status) && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8 }}>
-                    <p style={{ fontSize: 12, color: 'var(--yellow)', lineHeight: 1.5 }}>
-                      Awaiting admin approval before you can post jobs.
-                    </p>
-                  </div>
-                )}
-                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {d?.jobs?.active ?? 0} active · {d?.jobs?.closed ?? 0} closed
-                  </p>
-                </div>
-                <Link href="/hr" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', marginTop: 12, display: 'inline-flex' }}>
-                  Manage jobs <ChevronRight size={13} />
-                </Link>
-              </div>
-
-              <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Users size={16} style={{ color: 'var(--green)' }} />
-                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Applications</h3>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[
-                    { label: 'Total',       value: d?.applications?.total       ?? 0, color: 'var(--text-primary)' },
-                    { label: 'Pending',     value: d?.applications?.pending     ?? 0, color: 'var(--yellow)' },
-                    { label: 'Shortlisted', value: d?.applications?.shortlisted ?? 0, color: 'var(--green)' },
-                  ].map(s => (
-                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
-                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 600, color: s.color }}>{s.value}</span>
-                    </div>
-                  ))}
-                </div>
-                <Link href="/hr" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}>
-                  View applications <ChevronRight size={13} />
-                </Link>
-              </div>
+              ))}
             </div>
-          </AppShell>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+              If your company has already been approved, try logging out and back in.
+            </p>
+            <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
+              Refresh page
+            </button>
+          </div>
+        </AppShell>
+      )
+    }
+
+    const d = data as HRDashboard
+    return (
+      <AppShell
+        title={`Welcome, ${d?.user?.full_name?.split(' ')[0] ?? user?.full_name?.split(' ')[0] ?? 'there'}`}
+        subtitle="Your recruitment overview"
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
+          <StatCard label="Active Jobs"   value={d?.jobs?.active              ?? 0} color="var(--blue-bright)" />
+          <StatCard label="Total Jobs"    value={d?.jobs?.total               ?? 0} />
+          <StatCard label="Applications"  value={d?.applications?.total       ?? 0} />
+          <StatCard label="Shortlisted"   value={d?.applications?.shortlisted ?? 0} color="var(--green)" />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <Building2 size={16} style={{ color: 'var(--blue-bright)' }} />
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Company</h3>
+            </div>
+            <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{d?.company?.name ?? 'Your Company'}</p>
+            <Badge label={d?.company?.status ?? 'pending'} />
+            {(d?.company?.status === 'pending' || !d?.company?.status) && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8 }}>
+                <p style={{ fontSize: 12, color: 'var(--yellow)', lineHeight: 1.5 }}>Awaiting admin approval before you can post jobs.</p>
+              </div>
+            )}
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d?.jobs?.active ?? 0} active · {d?.jobs?.closed ?? 0} closed</p>
+            </div>
+            <Link href="/hr" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', marginTop: 12, display: 'inline-flex' }}>
+              Manage jobs <ChevronRight size={13} />
+            </Link>
+          </div>
+
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <Users size={16} style={{ color: 'var(--green)' }} />
+              <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Applications</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { label: 'Total',       value: d?.applications?.total       ?? 0, color: 'var(--text-primary)' },
+                { label: 'Pending',     value: d?.applications?.pending     ?? 0, color: 'var(--yellow)' },
+                { label: 'Shortlisted', value: d?.applications?.shortlisted ?? 0, color: 'var(--green)' },
+              ].map(s => (
+                <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{s.label}</span>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 600, color: s.color }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+            <Link href="/hr" className="btn btn-ghost btn-sm" style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}>
+              View applications <ChevronRight size={13} />
+            </Link>
+          </div>
+        </div>
+      </AppShell>
     )
   }
-  // ── GRADUATE DASHBOARD ────────────────────────────────────────────────────
-  const d = data as GraduateDashboard
-  const iri          = d?.coaching?.current_iri ?? 0
+
+  // ── GRADUATE DASHBOARD ─────────────────────────────────────────────────────
+  const d          = data as GraduateDashboard
+  const iri        = d?.coaching?.current_iri ?? 0
   const completeness = d?.profile?.completeness ?? 0
 
   return (
@@ -341,7 +310,7 @@ export default function DashboardPage() {
       <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
         <StatCard label="IRI Score"     value={iri > 0 ? iri.toFixed(1) : '—'} sub={d?.coaching?.readiness_level ?? 'No sessions yet'} color="var(--blue-bright)" />
         <StatCard label="Job Matches"   value={d?.job_matches?.total ?? 0} sub={`${d?.job_matches?.new_this_week ?? 0} new this week`} />
-        <StatCard label="Applications"  value={d?.applications?.total_applications ?? 0} sub={`${d?.applications?.shortlisted ?? 0} shortlisted`} color={(d?.applications?.shortlisted ?? 0) > 0 ? 'var(--green)' : undefined} />
+        <StatCard label="Applications"  value={d?.applications?.total ?? 0} sub={`${d?.applications?.shortlisted ?? 0} shortlisted`} color={(d?.applications?.shortlisted ?? 0) > 0 ? 'var(--green)' : undefined} />
         <StatCard label="CVs Generated" value={d?.generated_cvs ?? 0} sub="tailored documents" />
       </div>
 
@@ -368,14 +337,8 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <EmptyState
-              title="No coaching sessions yet"
-              description="Start a session to track your interview readiness."
-              action={
-                <Link href="/coaching" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
-                  Start coaching <Mic size={13} />
-                </Link>
-              }
+            <EmptyState title="No coaching sessions yet" description="Start a session to track your interview readiness."
+              action={<Link href="/coaching" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>Start coaching <Mic size={13} /></Link>}
             />
           )}
         </div>
@@ -434,14 +397,8 @@ export default function DashboardPage() {
               </Link>
             </div>
           ) : (
-            <EmptyState
-              title="No matches yet"
-              description="Run job matching to find relevant roles."
-              action={
-                <Link href="/jobs" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
-                  Run matching <ArrowRight size={13} />
-                </Link>
-              }
+            <EmptyState title="No matches yet" description="Run job matching to find relevant roles."
+              action={<Link href="/jobs" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>Run matching <ArrowRight size={13} /></Link>}
             />
           )}
         </div>
@@ -455,25 +412,23 @@ export default function DashboardPage() {
           </div>
           {(d?.recent_applications?.length ?? 0) > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(d?.recent_applications ?? []).slice(0, 4).map(app => (
+              {(d?.recent_applications ?? []).slice(0, 4).map((app: any) => (
                 <div key={app.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.job?.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{app.job?.company}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {app.job?.title ?? app.job_title}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {app.job?.company ?? app.company}
+                    </div>
                   </div>
                   <Badge label={app.status} />
                 </div>
               ))}
             </div>
           ) : (
-            <EmptyState
-              title="No applications yet"
-              description="Apply to jobs from the matches page."
-              action={
-                <Link href="/jobs" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>
-                  Browse jobs <ArrowRight size={13} />
-                </Link>
-              }
+            <EmptyState title="No applications yet" description="Apply to jobs from the matches page."
+              action={<Link href="/jobs" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>Browse jobs <ArrowRight size={13} /></Link>}
             />
           )}
         </div>
@@ -486,7 +441,7 @@ export default function DashboardPage() {
             <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Recommended next steps</h3>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-            {d.next_steps.slice(0, 3).map((step, i) => (
+            {d.next_steps.slice(0, 3).map((step: any, i: number) => (
               <Link key={i} href={step.link} style={{ textDecoration: 'none' }}>
                 <div className="card-interactive" style={{ background: 'var(--bg-elevated)', borderRadius: 8, border: '1px solid var(--border-default)', padding: '12px 14px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--blue-mid)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>
