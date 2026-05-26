@@ -309,3 +309,56 @@ async def reject_hr_endpoint(
             detail="A rejection reason is required.",
         )
     return await reject_hr_profile(db, current_user, hr_profile_id, data.reason)
+
+@router.post(
+    "/repair/hr-profiles",
+    summary="[Superadmin] Auto-create missing HR profiles for approved companies",
+)
+async def repair_hr_profiles(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create HR profiles for all approved companies that are missing them."""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin only.")
+
+    from app.models.company import Company, HRProfile
+    from datetime import datetime, timezone
+
+    # Get all approved companies
+    companies_result = await db.execute(
+        select(Company).where(Company.status == "approved", Company.created_by.is_not(None))
+    )
+    companies = companies_result.scalars().all()
+
+    created = []
+    for company in companies:
+        # Check if HR profile already exists for this user
+        existing = await db.execute(
+            select(HRProfile).where(HRProfile.user_id == company.created_by)
+        )
+        if existing.scalar_one_or_none():
+            continue
+
+        # Create HR profile
+        hr = HRProfile(
+            user_id=company.created_by,
+            company_id=company.id,
+            job_title="HR Manager",
+            is_company_admin=True,
+            status="approved",
+            approved_by=current_user.id,
+            approved_at=datetime.now(timezone.utc),
+        )
+        db.add(hr)
+
+        # Update user role to hr
+        user_result = await db.execute(select(User).where(User.id == company.created_by))
+        user = user_result.scalar_one_or_none()
+        if user and user.role != "superadmin":
+            user.role = "hr"
+
+        created.append(str(company.id))
+
+    await db.commit()
+    return {"message": f"Created {len(created)} HR profiles", "company_ids": created}
