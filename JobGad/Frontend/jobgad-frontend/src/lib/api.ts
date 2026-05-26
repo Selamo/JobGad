@@ -265,6 +265,11 @@ export interface GeneratedCV {
   storage_url?: string
   generated_at: string
 }
+export const analytics = {
+  admin:    () => request<any>('/analytics/admin'),
+  hr:       () => request<any>('/analytics/hr'),
+  graduate: () => request<any>('/analytics/graduate'),
+}
 export interface Notification { id: string; type: string; title: string; message: string; is_read: boolean; related_job_id?: string; related_application_id?: string; created_at: string }
 export interface NotificationsResponse { notifications: Notification[]; total: number; unread: number }
 export interface GraduateDashboard { user: User; profile: { exists: boolean; completeness: number; headline: string; target_role: string; skills_count: number; iri_score: number }; job_matches: { total: number; new_this_week: number; top_match_score: number; top_match_title: string }; applications: ApplicationStats & { recent_applications: Application[] }; recent_applications: Application[]; coaching: { total_sessions: number; current_iri: number; communication: number; technical_accuracy: number; confidence: number; structure: number; iri_history: { score: number; date: string }[]; readiness_level: string }; generated_cvs: number; unread_notifications: number; next_steps: { priority: number; action: string; description: string; link: string; icon: string }[] }
