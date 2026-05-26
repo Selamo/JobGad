@@ -55,6 +55,17 @@ export default function CVPage() {
       toast(e.message || 'Failed to generate CV', 'error')
     } finally { setGenerating(false) }
   }
+  
+  async function handleDeleteCV(cvId: string) {
+    if (!confirm('Are you sure you want to delete this CV?')) return
+    try {
+        await cv.delete(cvId)
+        toast('CV deleted', 'info')
+        await loadAll()
+    } catch (e: any) {
+        toast(e.message || 'Failed to delete CV', 'error')
+    }
+}
 
   async function handleGenerateWithAnswers() {
     if (!selectedJob) return
@@ -151,6 +162,10 @@ export default function CVPage() {
                 onClick={() => handleDownload(item)} disabled={downloading === (item.id || item.cv_id)}>
                 {downloading === (item.id || item.cv_id) ? <Spinner size="sm" /> : <Download size={13} />}
                 {downloading === (item.id || item.cv_id) ? 'Downloading...' : 'Download'}
+              </button>
+              <button className="btn btn-danger btn-sm" style={{ width: '100%', marginTop: 8 }}
+                  onClick={() => handleDeleteCV(item.id || item.cv_id || '')}>
+                  Delete
               </button>
             </div>
           ))}

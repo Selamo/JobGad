@@ -72,6 +72,19 @@ export default function AdminPage() {
     } finally { setActionId(null) }
   }
 
+  async function handleDeleteCompany(id: string) {
+    if (!confirm('Are you sure you want to permanently delete this company? This cannot be undone.')) return
+    setActionId(id)
+    try {
+        await admin.deleteCompany(id)
+        toast('Company deleted', 'info')
+        await loadAll()
+    } catch (e: any) {
+        toast(e.message || 'Failed to delete company', 'error')
+    } finally { setActionId(null) }
+}
+
+
   async function handleApproveHR(id: string) {
     setActionId(id)
     try {
@@ -218,16 +231,23 @@ export default function AdminPage() {
                         <Badge label={company.status} />
                       </div>
                     </div>
-                    {company.status === 'pending' && (
-                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button className="btn btn-primary btn-sm" onClick={() => handleApproveCompany(company.id)} disabled={actionId === company.id}>
-                          {actionId === company.id ? <Spinner size="sm" /> : <CheckCircle2 size={13} />} Approve
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        {company.status === 'pending' && (
+                            <>
+                                <button className="btn btn-primary btn-sm" onClick={() => handleApproveCompany(company.id)} disabled={actionId === company.id}>
+                                    {actionId === company.id ? <Spinner size="sm" /> : <CheckCircle2 size={13} />} Approve
+                                </button>
+                                <button className="btn btn-danger btn-sm" onClick={() => openReject(company.id, 'company')}>
+                                    <XCircle size={13} /> Reject
+                                </button>
+                            </>
+                        )}
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}
+                            onClick={() => handleDeleteCompany(company.id)}
+                            disabled={actionId === company.id}>
+                            Delete
                         </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => openReject(company.id, 'company')}>
-                          <XCircle size={13} /> Reject
-                        </button>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>

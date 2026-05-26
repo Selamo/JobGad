@@ -196,6 +196,7 @@ export const cv = {
     return Array.isArray(res) ? res : (res?.cvs ?? [])
   },
   download: (cvId: string, filename: string) => downloadFile(`/cv/${cvId}/download`, filename),
+  delete: (cvId: string) => request(`/cv/${cvId}`, { method: 'DELETE' }),
 }
 
 export const notifications = {
@@ -237,6 +238,7 @@ export const admin = {
   rejectHR: (id: string, reason: string) => request(`/admin/hr-profiles/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
   registerCompany: (data: object) => request('/admin/companies', { method: 'POST', body: JSON.stringify(data) }),
   registerHRProfile: (data: object) => request('/admin/hr-profiles', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCompany: (id: string) => request(`/admin/companies/${id}`, { method: 'DELETE' }),
 }
 
 export interface User { id: string; email: string; full_name: string; role: string; is_active: boolean; is_verified: boolean; created_at: string }
