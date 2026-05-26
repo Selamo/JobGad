@@ -130,25 +130,29 @@ async def get_graduate_dashboard(
     }
 
     # ── Recent Applications ───────────────────────────────────────────────────
+  from sqlalchemy.orm import selectinload
+
     recent_apps_stmt = (
-        select(Application, JobListing)
-        .join(JobListing, Application.job_id == JobListing.id)
+        select(Application)
+        .options(
+            selectinload(Application.job).selectinload(JobListing.company)
+        )
         .where(Application.user_id == user.id)
         .order_by(Application.applied_at.desc())
         .limit(5)
     )
     recent_apps_result = await db.execute(recent_apps_stmt)
-    recent_apps = recent_apps_result.fetchall()
+    recent_apps = recent_apps_result.scalars().all()
 
     recent_applications = [
         {
             "id": str(app.id),
-            "job_title": job.title,
-            "company": job.company,
+            "job_title": app.job.title if app.job else "",
+            "company": app.job.company.name if app.job and app.job.company else "",
             "status": app.status,
             "applied_at": str(app.applied_at),
         }
-        for app, job in recent_apps
+        for app in recent_apps
     ]
 
     # ── Coaching & IRI ────────────────────────────────────────────────────────
