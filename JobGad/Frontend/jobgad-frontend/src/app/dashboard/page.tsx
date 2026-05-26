@@ -310,7 +310,7 @@ export default function DashboardPage() {
       <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 24 }}>
         <StatCard label="IRI Score"     value={iri > 0 ? iri.toFixed(1) : '—'} sub={d?.coaching?.readiness_level ?? 'No sessions yet'} color="var(--blue-bright)" />
         <StatCard label="Job Matches"   value={d?.job_matches?.total ?? 0} sub={`${d?.job_matches?.new_this_week ?? 0} new this week`} />
-        <StatCard label="Applications"  value={d?.applications?.total ?? 0} sub={`${d?.applications?.shortlisted ?? 0} shortlisted`} color={(d?.applications?.shortlisted ?? 0) > 0 ? 'var(--green)' : undefined} />
+        <StatCard label="Applications"  value={d?.applications?.total_applications ?? d?.applications?.total_applications ?? 0} sub={`${d?.applications?.shortlisted ?? 0} shortlisted`} color={(d?.applications?.shortlisted ?? 0) > 0 ? 'var(--green)' : undefined} />
         <StatCard label="CVs Generated" value={d?.generated_cvs ?? 0} sub="tailored documents" />
       </div>
 
