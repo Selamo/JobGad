@@ -362,3 +362,27 @@ async def repair_hr_profiles(
 
     await db.commit()
     return {"message": f"Created {len(created)} HR profiles", "company_ids": created}
+
+@router.delete(
+    "/companies/{company_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="[Superadmin] Delete a company",
+)
+async def delete_company(
+    company_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Permanently delete a company and all associated data."""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Superadmin only.")
+
+    stmt = select(Company).where(Company.id == company_id)
+    result = await db.execute(stmt)
+    company = result.scalar_one_or_none()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found.")
+
+    await db.delete(company)
+    await db.commit()
