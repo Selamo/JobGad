@@ -429,3 +429,65 @@ async def hr_get_all_applications(
 
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def hr_update_job(
+    db: AsyncSession,
+    user: User,
+    job_id: UUID,
+    data: dict,
+) -> JobListing:
+    """HR updates an existing job listing."""
+    hr_profile = await _get_approved_hr(db, user)
+
+    # Load job and verify ownership
+    stmt = select(JobListing).where(
+        JobListing.id == job_id,
+        JobListing.company_id == hr_profile.company_id,
+    )
+    result = await db.execute(stmt)
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found or you do not have permission to edit it.",
+        )
+
+    # Update only provided fields
+    allowed = {
+        'title', 'location', 'description', 'requirements',
+        'salary_range', 'employment_type', 'status', 'application_deadline'
+    }
+    for key, value in data.items():
+        if key in allowed and value is not None:
+            setattr(job, key, value)
+
+    # Update is_active based on status
+    if 'status' in data:
+        job.is_active = data['status'] == 'published'
+
+    await db.commit()
+    await db.refresh(job)
+
+    # Re-index in Pinecone if title, description or requirements changed
+    if any(k in data for k in ['title', 'description', 'requirements']):
+        try:
+            from app.services.hr_service import build_job_text
+            from app.tools.pinecone_tools import upsert_job_vector
+            job_text = build_job_text(job)
+            await upsert_job_vector(
+                job_id=str(job.id),
+                text=job_text,
+                metadata={
+                    "title": job.title,
+                    "company": hr_profile.company.name,
+                    "location": job.location or "",
+                    "employment_type": job.employment_type or "",
+                    "is_active": job.is_active,
+                },
+            )
+        except Exception as e:
+            print(f"[HR Service] Pinecone re-index failed (non-fatal): {e}")
+
+    return job
