@@ -127,8 +127,22 @@ async def hr_create_job(
         except Exception as e:
             print(f"[HR Service] Pinecone indexing failed (non-fatal): {e}")
 
-    return job
+        # ── Notify matching graduates ─────────────────────────────────────
+        try:
+            company_name = hr_profile.company.name if hr_profile.company else "the company"
 
+            # Run AI matching for this specific job against all graduate profiles
+            from app.services.matching_service import run_matching_for_new_job
+            await run_matching_for_new_job(db, job)
+
+            # Notify graduates whose match score is above 50%
+            from app.services.job_alert_service import notify_matching_graduates
+            notified = await notify_matching_graduates(db, job, company_name, min_score=0.5)
+            print(f"[HR Service] Job alerts sent to {notified} graduates")
+        except Exception as e:
+            print(f"[HR Service] Job alert trigger failed (non-fatal): {e}")
+
+    return job
 
 async def hr_update_job(
     db: AsyncSession,
@@ -415,3 +429,65 @@ async def hr_get_all_applications(
 
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def hr_update_job(
+    db: AsyncSession,
+    user: User,
+    job_id: UUID,
+    data: dict,
+) -> JobListing:
+    """HR updates an existing job listing."""
+    hr_profile = await _get_approved_hr(db, user)
+
+    # Load job and verify ownership
+    stmt = select(JobListing).where(
+        JobListing.id == job_id,
+        JobListing.company_id == hr_profile.company_id,
+    )
+    result = await db.execute(stmt)
+    job = result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found or you do not have permission to edit it.",
+        )
+
+    # Update only provided fields
+    allowed = {
+        'title', 'location', 'description', 'requirements',
+        'salary_range', 'employment_type', 'status', 'application_deadline'
+    }
+    for key, value in data.items():
+        if key in allowed and value is not None:
+            setattr(job, key, value)
+
+    # Update is_active based on status
+    if 'status' in data:
+        job.is_active = data['status'] == 'published'
+
+    await db.commit()
+    await db.refresh(job)
+
+    # Re-index in Pinecone if title, description or requirements changed
+    if any(k in data for k in ['title', 'description', 'requirements']):
+        try:
+            from app.services.hr_service import build_job_text
+            from app.tools.pinecone_tools import upsert_job_vector
+            job_text = build_job_text(job)
+            await upsert_job_vector(
+                job_id=str(job.id),
+                text=job_text,
+                metadata={
+                    "title": job.title,
+                    "company": hr_profile.company.name,
+                    "location": job.location or "",
+                    "employment_type": job.employment_type or "",
+                    "is_active": job.is_active,
+                },
+            )
+        except Exception as e:
+            print(f"[HR Service] Pinecone re-index failed (non-fatal): {e}")
+
+    return job

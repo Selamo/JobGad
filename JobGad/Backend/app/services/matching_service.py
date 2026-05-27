@@ -254,3 +254,102 @@ async def explain_match(
         "match_reason": match.match_reason,
         "skill_overlap": overlap,
     }
+
+
+# ─── Match New Job Against All Profiles ───────────────────────────────────────
+
+async def run_matching_for_new_job(
+    db: AsyncSession,
+    job: JobListing,
+) -> int:
+    """
+    When a new job is posted, match it against all existing graduate profiles.
+    Creates JobMatch records for profiles that score above threshold.
+    Returns number of matches created.
+    """
+    from app.tools.pinecone_tools import query_similar_profiles
+    from app.tools.scoring_tools import build_match_reason
+
+    if not job.pinecone_vector_id:
+        print(f"[Matching] Job '{job.title}' not in Pinecone yet, skipping profile matching")
+        return 0
+
+    try:
+        # Get all graduate profiles
+        profiles_stmt = (
+            select(Profile)
+            .options(selectinload(Profile.skills))
+            .options(selectinload(Profile.user))
+        )
+        profiles_result = await db.execute(profiles_stmt)
+        profiles = profiles_result.scalars().all()
+
+        if not profiles:
+            return 0
+
+        matches_created = 0
+
+        for profile in profiles:
+            # Only match graduate users
+            if not profile.user or profile.user.role != "graduate":
+                continue
+
+            # Build profile text and get similarity score
+            profile_text = build_profile_text(profile)
+            if not profile_text.strip():
+                continue
+
+            # Check if match already exists
+            existing_stmt = select(JobMatch).where(
+                JobMatch.profile_id == profile.id,
+                JobMatch.job_id == job.id,
+            )
+            existing_result = await db.execute(existing_stmt)
+            existing = existing_result.scalar_one_or_none()
+
+            if existing:
+                continue  # Already matched
+
+            # Query Pinecone for similarity between this profile and the job
+            try:
+                from app.tools.pinecone_tools import get_similarity_score
+                score = await get_similarity_score(
+                    profile_text=profile_text,
+                    job_vector_id=job.pinecone_vector_id,
+                )
+            except Exception:
+                # Fallback: use keyword overlap scoring
+                score = _keyword_score(profile, job)
+
+            if score < 0.3:  # Below minimum threshold
+                continue
+
+            reason = build_match_reason(score, profile, job)
+            db.add(JobMatch(
+                profile_id=profile.id,
+                job_id=job.id,
+                similarity_score=score,
+                match_reason=reason,
+                status="suggested",
+            ))
+            matches_created += 1
+
+        await db.commit()
+        print(f"[Matching] Created {matches_created} matches for job '{job.title}'")
+        return matches_created
+
+    except Exception as e:
+        print(f"[Matching] run_matching_for_new_job error: {e}")
+        return 0
+
+
+def _keyword_score(profile: Profile, job: JobListing) -> float:
+    """Simple keyword overlap score as fallback when Pinecone is unavailable."""
+    profile_skills = {s.name.lower() for s in (profile.skills or [])}
+    job_text = f"{job.title} {job.description or ''} {job.requirements or ''}".lower()
+
+    if not profile_skills:
+        return 0.0
+
+    matches = sum(1 for skill in profile_skills if skill in job_text)
+    return min(matches / max(len(profile_skills), 1), 1.0)

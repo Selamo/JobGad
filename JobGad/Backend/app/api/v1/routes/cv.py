@@ -200,3 +200,24 @@ async def list_my_cvs(
         ],
         "total": len(cvs),
     }
+@router.delete(
+    "/{cv_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a generated CV",
+)
+async def delete_cv(
+    cv_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(GeneratedCV).where(
+        GeneratedCV.id == cv_id,
+        GeneratedCV.user_id == current_user.id,
+    )
+    result = await db.execute(stmt)
+    cv = result.scalar_one_or_none()
+    if not cv:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="CV not found.")
+    await db.delete(cv)
+    await db.commit()

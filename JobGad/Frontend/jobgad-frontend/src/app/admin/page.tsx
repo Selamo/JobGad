@@ -2,26 +2,24 @@
 import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { Badge, Modal, Spinner, EmptyState, toast, ToastContainer } from '@/components/ui'
-import { admin } from '@/lib/api'
-import { Building2, ShieldCheck, CheckCircle2, XCircle, ChevronRight, Globe, Users, LayoutDashboard } from 'lucide-react'
+import { admin, analytics } from '@/lib/api'
+import { Building2, ShieldCheck, CheckCircle2, XCircle, ChevronRight, Globe, Users, LayoutDashboard, TrendingUp } from 'lucide-react'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 
-type AdminTab = 'overview' | 'companies' | 'hr'
+type AdminTab = 'overview' | 'companies' | 'hr' | 'analytics'
 
 interface Company {
   id: string; name: string; industry: string; city: string
   country: string; website?: string; status: string; created_at: string
 }
-
 interface HRProfile {
   id: string; job_title: string; status: string; created_at: string
   user?: { full_name: string; email: string }
   company?: { name: string }
 }
-
 interface DashboardStats {
   total_users?: number; total_companies?: number
   total_jobs?: number; total_applications?: number
-  pending_companies?: number; pending_hr?: number
 }
 
 export default function AdminPage() {
@@ -35,6 +33,8 @@ export default function AdminPage() {
   const [rejectTarget, setRejectTarget] = useState<{ id: string; type: 'company' | 'hr' } | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
 
   useEffect(() => { loadAll() }, [])
 
@@ -42,9 +42,7 @@ export default function AdminPage() {
     setLoading(true)
     try {
       const [s, c, h] = await Promise.allSettled([
-        admin.dashboard(),
-        admin.getCompanies(),
-        admin.getHRProfiles(),
+        admin.dashboard(), admin.getCompanies(), admin.getHRProfiles(),
       ])
       if (s.status === 'fulfilled') setStats(s.value as DashboardStats)
       if (c.status === 'fulfilled') {
@@ -54,33 +52,41 @@ export default function AdminPage() {
       if (h.status === 'fulfilled') {
         const val = h.value as any
         setHRProfiles(Array.isArray(val) ? val : val?.hr_profiles ?? [])
-      } else {
-        // HR endpoint has a backend error — show empty for now
-        setHRProfiles([])
-      }
+      } else { setHRProfiles([]) }
     } finally { setLoading(false) }
+  }
+
+  async function loadAnalytics() {
+    if (analyticsData) return
+    setAnalyticsLoading(true)
+    try {
+      const res = await analytics.admin()
+      setAnalyticsData(res)
+    } catch (e: any) {
+      toast(e.message || 'Failed to load analytics', 'error')
+    } finally { setAnalyticsLoading(false) }
   }
 
   async function handleApproveCompany(id: string) {
     setActionId(id)
-    try {
-      await admin.approveCompany(id)
-      toast('Company approved', 'success')
-      await loadAll()
-    } catch (e: any) {
-      toast(e.message || 'Failed to approve', 'error')
-    } finally { setActionId(null) }
+    try { await admin.approveCompany(id); toast('Company approved', 'success'); await loadAll() }
+    catch (e: any) { toast(e.message || 'Failed to approve', 'error') }
+    finally { setActionId(null) }
+  }
+
+  async function handleDeleteCompany(id: string) {
+    if (!confirm('Permanently delete this company? This cannot be undone.')) return
+    setActionId(id)
+    try { await admin.deleteCompany(id); toast('Company deleted', 'info'); await loadAll() }
+    catch (e: any) { toast(e.message || 'Failed to delete', 'error') }
+    finally { setActionId(null) }
   }
 
   async function handleApproveHR(id: string) {
     setActionId(id)
-    try {
-      await admin.approveHR(id)
-      toast('HR account approved', 'success')
-      await loadAll()
-    } catch (e: any) {
-      toast(e.message || 'Failed to approve', 'error')
-    } finally { setActionId(null) }
+    try { await admin.approveHR(id); toast('HR account approved', 'success'); await loadAll() }
+    catch (e: any) { toast(e.message || 'Failed to approve', 'error') }
+    finally { setActionId(null) }
   }
 
   async function handleReject() {
@@ -90,19 +96,14 @@ export default function AdminPage() {
       if (rejectTarget.type === 'company') await admin.rejectCompany(rejectTarget.id, rejectReason)
       else await admin.rejectHR(rejectTarget.id, rejectReason)
       toast('Rejected successfully', 'info')
-      setShowReject(false)
-      setRejectReason('')
-      setRejectTarget(null)
+      setShowReject(false); setRejectReason(''); setRejectTarget(null)
       await loadAll()
-    } catch (e: any) {
-      toast(e.message || 'Failed to reject', 'error')
-    } finally { setSubmitting(false) }
+    } catch (e: any) { toast(e.message || 'Failed to reject', 'error') }
+    finally { setSubmitting(false) }
   }
 
   function openReject(id: string, type: 'company' | 'hr') {
-    setRejectTarget({ id, type })
-    setRejectReason('')
-    setShowReject(true)
+    setRejectTarget({ id, type }); setRejectReason(''); setShowReject(true)
   }
 
   function formatDate(iso: string) {
@@ -112,18 +113,24 @@ export default function AdminPage() {
   const pendingCompanies = companies.filter(c => c.status === 'pending')
   const pendingHR        = hrProfiles.filter(h => h.status === 'pending')
 
+  const TABS = [
+    { key: 'overview',   label: 'Overview',   icon: <LayoutDashboard size={14} /> },
+    { key: 'companies',  label: `Companies${pendingCompanies.length > 0 ? ` (${pendingCompanies.length})` : ''}`, icon: <Building2 size={14} /> },
+    { key: 'hr',         label: `HR Accounts${pendingHR.length > 0 ? ` (${pendingHR.length})` : ''}`, icon: <ShieldCheck size={14} /> },
+    { key: 'analytics',  label: 'Analytics',  icon: <TrendingUp size={14} /> },
+  ] as { key: AdminTab; label: string; icon: React.ReactNode }[]
+
+  const tooltipStyle = { background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 12 }
+
   return (
     <AppShell title="Admin Panel" subtitle="Manage companies, HR accounts and platform overview">
       <ToastContainer />
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)' }}>
-        {([
-          { key: 'overview',  label: 'Overview',  icon: <LayoutDashboard size={14} /> },
-          { key: 'companies', label: `Companies${pendingCompanies.length > 0 ? ` (${pendingCompanies.length} pending)` : ''}`, icon: <Building2 size={14} /> },
-          { key: 'hr',        label: `HR Accounts${pendingHR.length > 0 ? ` (${pendingHR.length} pending)` : ''}`, icon: <ShieldCheck size={14} /> },
-        ] as { key: AdminTab; label: string; icon: React.ReactNode }[]).map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+        {TABS.map(t => (
+          <button key={t.key}
+            onClick={() => { setTab(t.key); if (t.key === 'analytics') loadAnalytics() }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', fontSize: 13, fontWeight: 500, color: tab === t.key ? 'var(--text-primary)' : 'var(--text-muted)', borderBottom: `2px solid ${tab === t.key ? 'var(--blue-core)' : 'transparent'}`, marginBottom: -1, transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6 }}>
             {t.icon} {t.label}
           </button>
@@ -134,7 +141,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
       ) : (
         <>
-          {/* Overview */}
+          {/* ── Overview ─────────────────────────────────────────────────── */}
           {tab === 'overview' && (
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -152,33 +159,24 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-
               {(pendingCompanies.length > 0 || pendingHR.length > 0) ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {pendingCompanies.length > 0 && (
                     <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '13px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Building2 size={15} style={{ color: 'var(--yellow)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                          <strong>{pendingCompanies.length}</strong> company registration{pendingCompanies.length > 1 ? 's' : ''} awaiting approval
-                        </span>
+                        <span style={{ fontSize: 13 }}><strong>{pendingCompanies.length}</strong> company registration{pendingCompanies.length > 1 ? 's' : ''} awaiting approval</span>
                       </div>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setTab('companies')}>
-                        Review <ChevronRight size={13} />
-                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setTab('companies')}>Review <ChevronRight size={13} /></button>
                     </div>
                   )}
                   {pendingHR.length > 0 && (
                     <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '13px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <ShieldCheck size={15} style={{ color: 'var(--yellow)' }} />
-                        <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                          <strong>{pendingHR.length}</strong> HR account{pendingHR.length > 1 ? 's' : ''} awaiting approval
-                        </span>
+                        <span style={{ fontSize: 13 }}><strong>{pendingHR.length}</strong> HR account{pendingHR.length > 1 ? 's' : ''} awaiting approval</span>
                       </div>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setTab('hr')}>
-                        Review <ChevronRight size={13} />
-                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setTab('hr')}>Review <ChevronRight size={13} /></button>
                     </div>
                   )}
                 </div>
@@ -191,11 +189,10 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Companies */}
+          {/* ── Companies ────────────────────────────────────────────────── */}
           {tab === 'companies' && (
             companies.length === 0 ? (
-              <EmptyState icon={<Building2 size={28} />} title="No companies registered"
-                description="Companies will appear here once they register on the platform." />
+              <EmptyState icon={<Building2 size={28} />} title="No companies registered" description="Companies will appear here once they register." />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {companies.map(company => (
@@ -209,36 +206,39 @@ export default function AdminPage() {
                           <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{company.name}</h3>
                           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{company.industry}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                              <Globe size={10} /> {company.city}, {company.country}
-                            </span>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}><Globe size={10} /> {company.city}, {company.country}</span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Registered {formatDate(company.created_at)}</span>
                           </div>
                         </div>
                         <Badge label={company.status} />
                       </div>
                     </div>
-                    {company.status === 'pending' && (
-                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button className="btn btn-primary btn-sm" onClick={() => handleApproveCompany(company.id)} disabled={actionId === company.id}>
-                          {actionId === company.id ? <Spinner size="sm" /> : <CheckCircle2 size={13} />} Approve
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => openReject(company.id, 'company')}>
-                          <XCircle size={13} /> Reject
-                        </button>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      {company.status === 'pending' && (
+                        <>
+                          <button className="btn btn-primary btn-sm" onClick={() => handleApproveCompany(company.id)} disabled={actionId === company.id}>
+                            {actionId === company.id ? <Spinner size="sm" /> : <CheckCircle2 size={13} />} Approve
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={() => openReject(company.id, 'company')}>
+                            <XCircle size={13} /> Reject
+                          </button>
+                        </>
+                      )}
+                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}
+                        onClick={() => handleDeleteCompany(company.id)} disabled={actionId === company.id}>
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )
           )}
 
-          {/* HR Accounts */}
+          {/* ── HR Accounts ──────────────────────────────────────────────── */}
           {tab === 'hr' && (
             hrProfiles.length === 0 ? (
-              <EmptyState icon={<Users size={28} />} title="No HR accounts registered"
-                description="HR accounts will appear here once recruiters register on the platform." />
+              <EmptyState icon={<Users size={28} />} title="No HR accounts registered" description="HR accounts will appear here once recruiters register." />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {hrProfiles.map(hrp => (
@@ -278,6 +278,97 @@ export default function AdminPage() {
               </div>
             )
           )}
+
+          {/* ── Analytics ────────────────────────────────────────────────── */}
+          {tab === 'analytics' && (
+            analyticsLoading || !analyticsData ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div className="card">
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>User Registrations — Last 30 Days</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={analyticsData.registrations_trend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={4} />
+                      <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Line type="monotone" dataKey="users" stroke="var(--blue-core)" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="card">
+                  <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Applications — Last 30 Days</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={analyticsData.applications_trend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={4} />
+                      <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Bar dataKey="applications" fill="var(--blue-mid)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="card">
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Companies by Industry</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={analyticsData.companies_by_industry} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                        <YAxis type="category" dataKey="industry" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} width={90} />
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Bar dataKey="count" fill="var(--blue-core)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="card">
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>IRI Score Distribution</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={analyticsData.iri_distribution}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                        <XAxis dataKey="range" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Bar dataKey="count" fill="var(--cyan-bright)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="card">
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Users by Role</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={analyticsData.users_by_role} dataKey="count" nameKey="role" cx="50%" cy="50%" outerRadius={80}
+                          label={({ role, percent }: any) => `${role} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                          {analyticsData.users_by_role.map((_: any, i: number) => (
+                            <Cell key={i} fill={['var(--blue-core)', 'var(--cyan-bright)', 'var(--green)', 'var(--yellow)'][i % 4]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="card">
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Top Companies by Jobs</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={analyticsData.top_companies_by_jobs} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} width={90} />
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Bar dataKey="jobs" fill="var(--green)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )
+          )}
         </>
       )}
 
@@ -286,9 +377,7 @@ export default function AdminPage() {
         title={`Reject ${rejectTarget?.type === 'company' ? 'Company' : 'HR Account'}`} maxWidth={440}>
         <div className="modal-body">
           <div style={{ padding: '10px 14px', background: 'var(--red-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, marginBottom: 16 }}>
-            <p style={{ fontSize: 12, color: 'var(--red)', lineHeight: 1.6 }}>
-              The applicant will be notified by email with the reason you provide below.
-            </p>
+            <p style={{ fontSize: 12, color: 'var(--red)', lineHeight: 1.6 }}>The applicant will be notified by email with the reason you provide below.</p>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="label">Rejection reason</label>

@@ -1,45 +1,18 @@
 """
-CV Generator — uses Gemini AI to generate a tailored, professional CV
-based on the user's profile and a specific job listing.
+CV Generator — uses Groq AI to generate a tailored, professional CV.
+Groq is used for fast text generation.
+Gemini Live is reserved for audio interview coaching only.
 """
 import json
 import asyncio
-import google.generativeai as genai
+from typing import Optional
+
 from app.core.config import settings
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
 
-
-def _generate_cv_sync(prompt: str) -> dict:
-    """Synchronous Gemini call — run in thread pool."""
-    try:
-        response = model.generate_content(prompt)
-        raw = response.text.strip()
-        if raw.startswith("```"):
-            parts = raw.split("```")
-            raw = parts[1] if len(parts) > 1 else raw
-            if raw.startswith("json"):
-                raw = raw[4:]
-        raw = raw.strip()
-        return json.loads(raw)
-    except Exception as e:
-        print(f"[CV Generator] Content generation failed: {e}")
-        return None
-
-
-async def generate_cv_content(
-    profile: dict,
-    job: dict,
-    additional_info: dict = None,
-) -> dict:
-    """
-    Use Gemini to generate a tailored CV for a specific job.
-    """
+def _build_prompt(profile: dict, job: dict, additional_info: Optional[dict] = None) -> str:
     additional = json.dumps(additional_info) if additional_info else "None provided"
-
-    prompt = f"""
-You are an expert CV writer and career coach. Generate a professional,
+    return f"""You are an expert CV writer and career coach. Generate a professional,
 tailored CV for the following candidate applying for a specific job.
 
 CANDIDATE PROFILE:
@@ -67,16 +40,16 @@ JOB BEING APPLIED FOR:
 - Job Description: {job.get('description', 'Not provided')[:1000]}
 - Requirements: {job.get('requirements', 'Not provided')[:800]}
 
-ADDITIONAL INFORMATION PROVIDED BY CANDIDATE:
+ADDITIONAL INFORMATION:
 {additional}
 
 INSTRUCTIONS:
 1. Generate a TAILORED CV highlighting skills most relevant to THIS specific job
-2. Write a compelling professional summary specifically for this role
-3. If the profile is missing important info for this role, list 2-4 specific questions in missing_info_questions
+2. Write a compelling professional summary for this role
+3. If the profile is missing important info, list 2-4 specific questions in missing_info_questions
 4. If profile has enough info, return empty array for missing_info_questions
 5. Make the CV professional, concise, and ATS-friendly
-6. Return ONLY valid JSON, no explanation, no markdown backticks
+6. Return ONLY valid JSON, no markdown backticks, no explanation
 
 Return EXACTLY this JSON structure:
 {{
@@ -125,46 +98,98 @@ Return EXACTLY this JSON structure:
         "Do you have any projects you have built? Please describe them.",
         "Do you have any certifications or online courses completed?"
     ]
-}}
-"""
+}}"""
 
-    # Run synchronous Gemini call in thread pool to avoid blocking event loop
+
+def _call_groq(prompt: str) -> Optional[dict]:
+    """Synchronous Groq call — run in thread pool."""
+    try:
+        from groq import Groq
+        client = Groq(api_key=settings.GROQ_API_KEY)
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert CV writer. Always respond with valid JSON only. No markdown, no backticks, no explanation."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            max_tokens=4000,
+        )
+
+        raw = response.choices[0].message.content.strip()
+
+        # Clean up any accidental markdown
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
+
+        return json.loads(raw)
+
+    except Exception as e:
+        print(f"[CV Generator - Groq] Generation failed: {e}")
+        return None
+
+
+def _fallback_cv(profile: dict) -> dict:
+    """Return a minimal CV if AI fails."""
+    return {
+        "personal_info": {
+            "full_name": profile.get("full_name", ""),
+            "email": profile.get("email", ""),
+            "linkedin": profile.get("linkedin_url", ""),
+            "github": profile.get("github_url", ""),
+            "location": "",
+        },
+        "professional_summary": profile.get("bio", ""),
+        "relevant_skills": {
+            "technical": profile.get("skills", []),
+            "soft": [],
+            "tools": [],
+        },
+        "education": [{
+            "degree": profile.get("education_level", ""),
+            "field": profile.get("field_of_study", ""),
+            "institution": profile.get("institution", ""),
+            "year": str(profile.get("graduation_year", "")),
+            "achievements": "",
+        }],
+        "experience": [],
+        "projects": [],
+        "certifications": [],
+        "missing_info_questions": [
+            "What is your work experience? (internships, part-time, freelance)",
+            "Do you have any projects you have built?",
+            "Do you have any certifications or online courses?",
+        ],
+    }
+
+
+async def generate_cv_content(
+    profile: dict,
+    job: dict,
+    additional_info: Optional[dict] = None,
+) -> dict:
+    """Generate tailored CV content using Groq AI."""
+    prompt = _build_prompt(profile, job, additional_info)
+
+    # Run synchronous Groq call in thread pool
     result = await asyncio.get_event_loop().run_in_executor(
-        None, _generate_cv_sync, prompt
+        None, _call_groq, prompt
     )
 
     if result is None:
-        # Fallback if AI fails
-        return {
-            "personal_info": {
-                "full_name": profile.get("full_name", ""),
-                "email": profile.get("email", ""),
-                "linkedin": profile.get("linkedin_url", ""),
-                "github": profile.get("github_url", ""),
-                "location": "",
-            },
-            "professional_summary": profile.get("bio", ""),
-            "relevant_skills": {
-                "technical": profile.get("skills", []),
-                "soft": [],
-                "tools": [],
-            },
-            "education": [{
-                "degree": profile.get("education_level", ""),
-                "field": profile.get("field_of_study", ""),
-                "institution": profile.get("institution", ""),
-                "year": str(profile.get("graduation_year", "")),
-                "achievements": "",
-            }],
-            "experience": [],
-            "projects": [],
-            "certifications": [],
-            "missing_info_questions": [
-                "What is your work experience? (internships, part-time, freelance)",
-                "Do you have any projects you have built?",
-                "Do you have any certifications or online courses?",
-            ],
-        }
+        print("[CV Generator] Groq failed, using fallback CV")
+        return _fallback_cv(profile)
 
     return result
 
@@ -174,15 +199,22 @@ async def generate_cv_with_clarifications(
     job: dict,
     answers: dict,
 ) -> dict:
-    """
-    Regenerate CV after user has answered clarifying questions.
-    Merges answers into profile before generating.
-    """
+    """Regenerate CV after user has answered clarifying questions."""
     enriched_profile = {**profile}
     if answers:
-        enriched_profile["additional_experience"] = answers.get("experience", answers.get("What is your work experience? (internships, part-time, freelance)", ""))
-        enriched_profile["additional_projects"] = answers.get("projects", answers.get("Do you have any projects you have built?", ""))
-        enriched_profile["certifications"] = answers.get("certifications", answers.get("Do you have any certifications or online courses?", ""))
+        # Map answers to profile fields — handles both keyed and question-text keys
+        enriched_profile["additional_experience"] = answers.get(
+            "experience",
+            answers.get("What is your work experience? (internships, part-time, freelance)", "")
+        )
+        enriched_profile["additional_projects"] = answers.get(
+            "projects",
+            answers.get("Do you have any projects you have built?", "")
+        )
+        enriched_profile["certifications"] = answers.get(
+            "certifications",
+            answers.get("Do you have any certifications or online courses?", "")
+        )
         enriched_profile["additional_skills"] = answers.get("skills", "")
 
     return await generate_cv_content(

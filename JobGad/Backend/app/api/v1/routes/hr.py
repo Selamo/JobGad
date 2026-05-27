@@ -26,6 +26,7 @@ from app.services.hr_service import (
     hr_get_job_applications,
     hr_update_application_status,
     hr_get_all_applications,
+    hr_update_job
 )
 
 router = APIRouter()
@@ -190,4 +191,18 @@ async def update_application_status(
         new_status=data.status,
         hr_notes=data.hr_notes,
     )
-    
+
+
+@router.patch(
+    "/jobs/{job_id}",
+    response_model=HRJobResponse,
+    summary="[HR] Edit a job listing",
+)
+async def edit_job(
+    job_id: UUID,
+    data: HRJobUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update an existing job listing. Only the posting company's HR can edit."""
+    return await hr_update_job(db, current_user, job_id, data.model_dump(exclude_unset=True))

@@ -101,6 +101,7 @@ export const profile = {
   create: (data: Partial<Profile>) => request('/profile/me', { method: 'POST', body: JSON.stringify(data) }),
   update: (data: Partial<Profile>) => request('/profile/me', { method: 'PUT', body: JSON.stringify(data) }),
   delete: () => request('/profile/me', { method: 'DELETE' }),
+  parseCV: (docId: string) => request<any>(`/profile/documents/${docId}/parse-cv`, { method: 'POST' }),
   completeness: async () => {
     const res = await request<any>('/profile/me/completeness')
     return typeof res === 'number' ? res : (res?.profile_completeness ?? 0)
@@ -196,6 +197,7 @@ export const cv = {
     return Array.isArray(res) ? res : (res?.cvs ?? [])
   },
   download: (cvId: string, filename: string) => downloadFile(`/cv/${cvId}/download`, filename),
+  delete: (cvId: string) => request(`/cv/${cvId}`, { method: 'DELETE' }),
 }
 
 export const notifications = {
@@ -212,11 +214,12 @@ export const dashboard = {
 
 export const hr = {
   postJob: (data: object) => request('/hr/jobs', { method: 'POST', body: JSON.stringify(data) }),
+  updateJob: (jobId: string, data: Partial<Job>) =>
+    request<Job>(`/hr/jobs/${jobId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getJobs: async (includeInactive = false) => {
     const res = await request<any>(`/hr/jobs?include_closed=${includeInactive}`)
     return Array.isArray(res) ? res : (res?.jobs ?? [])
   },
-  updateJob: (id: string, data: object) => request(`/hr/jobs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   closeJob: (id: string) => request(`/hr/jobs/${id}/close`, { method: 'PATCH' }),
   getApplications: async (status?: string) => {
     const res = await request<any>(`/hr/applications${status ? `?status_filter=${status}` : ''}`)
@@ -237,6 +240,7 @@ export const admin = {
   rejectHR: (id: string, reason: string) => request(`/admin/hr-profiles/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
   registerCompany: (data: object) => request('/admin/companies', { method: 'POST', body: JSON.stringify(data) }),
   registerHRProfile: (data: object) => request('/admin/hr-profiles', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCompany: (id: string) => request(`/admin/companies/${id}`, { method: 'DELETE' }),
 }
 
 export interface User { id: string; email: string; full_name: string; role: string; is_active: boolean; is_verified: boolean; created_at: string }
@@ -262,6 +266,11 @@ export interface GeneratedCV {
   file_format: string
   storage_url?: string
   generated_at: string
+}
+export const analytics = {
+  admin:    () => request<any>('/analytics/admin'),
+  hr:       () => request<any>('/analytics/hr'),
+  graduate: () => request<any>('/analytics/graduate'),
 }
 export interface Notification { id: string; type: string; title: string; message: string; is_read: boolean; related_job_id?: string; related_application_id?: string; created_at: string }
 export interface NotificationsResponse { notifications: Notification[]; total: number; unread: number }

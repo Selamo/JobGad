@@ -30,6 +30,8 @@ from app.api.v1.routes.notifications import router as notifications_router
 from app.api.v1.routes.cv import router as cv_router
 from app.api.v1.routes.search import router as search_router
 from app.api.v1.routes.dashboard import router as dashboard_router
+from app.api.v1.routes.analytics import router as analytics_router
+
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
 
@@ -154,7 +156,7 @@ app.include_router(
     prefix=f"{settings.API_V1_STR}/dashboard",
     tags=["Dashboard"],
 )
-
+app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["analytics"])
 
 # ─── Health Check ─────────────────────────────────────────────────────────────
 @app.get("/health", tags=["System"])

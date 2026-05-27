@@ -120,3 +120,63 @@ async def delete_job_vector(job_id: str) -> None:
         index.delete(ids=[f"job_{job_id}"])
 
     await asyncio.to_thread(_delete)
+
+
+
+async def get_similarity_score(
+    profile_text: str,
+    job_vector_id: str,
+) -> float:
+    """
+    Get similarity score between a profile text and a specific job vector.
+    Fetches the job vector from Pinecone then computes cosine similarity.
+    """
+    def _score():
+        try:
+            index = _get_index()
+            # Embed the profile text
+            profile_vector = embed_text(profile_text)
+            # Fetch the job vector
+            fetch_result = index.fetch(ids=[job_vector_id])
+            vectors = fetch_result.get("vectors", {})
+            if job_vector_id not in vectors:
+                return 0.0
+            job_vector = vectors[job_vector_id]["values"]
+            # Cosine similarity
+            dot = sum(a * b for a, b in zip(profile_vector, job_vector))
+            norm_p = sum(a * a for a in profile_vector) ** 0.5
+            norm_j = sum(b * b for b in job_vector) ** 0.5
+            if norm_p == 0 or norm_j == 0:
+                return 0.0
+            return dot / (norm_p * norm_j)
+        except Exception as e:
+            print(f"[Pinecone] get_similarity_score error: {e}")
+            return 0.0
+
+    return await asyncio.to_thread(_score)
+
+
+async def query_similar_profiles(
+    job_text: str,
+    top_k: int = 50,
+) -> list[dict]:
+    """Find the most semantically similar profiles to the given job text."""
+    def _query():
+        index = _get_index()
+        vector = embed_text(job_text)
+        response = index.query(
+            vector=vector,
+            top_k=top_k,
+            include_metadata=True,
+            filter={"type": "profile"},
+        )
+        return [
+            {
+                "id": match["id"],
+                "score": match["score"],
+                "metadata": match.get("metadata", {}),
+            }
+            for match in response.get("matches", [])
+        ]
+
+    return await asyncio.to_thread(_query)
