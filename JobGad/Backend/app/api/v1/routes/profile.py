@@ -503,3 +503,25 @@ async def get_cv_review(
         },
         "cv_review": suggestions,
     }
+
+
+@router.post(
+    "/documents/{document_id}/parse-cv",
+    summary="Parse uploaded CV and auto-fill profile fields",
+)
+async def parse_cv_to_profile(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Parse an uploaded CV document using AI and automatically fill in:
+    - Profile headline, bio, target role
+    - Education details (level, field, institution, graduation year)
+    - GitHub and LinkedIn URLs
+    - All extracted skills with categories and proficiency levels
+
+    Only fills fields that are currently empty — existing data is preserved.
+    """
+    from app.services.cv_parser_service import parse_cv_and_update_profile
+    return await parse_cv_and_update_profile(db, current_user, str(document_id))
