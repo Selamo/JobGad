@@ -214,11 +214,12 @@ export const dashboard = {
 
 export const hr = {
   postJob: (data: object) => request('/hr/jobs', { method: 'POST', body: JSON.stringify(data) }),
+  updateJob: (jobId: string, data: Partial<Job>) =>
+    request<Job>(`/hr/jobs/${jobId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getJobs: async (includeInactive = false) => {
     const res = await request<any>(`/hr/jobs?include_closed=${includeInactive}`)
     return Array.isArray(res) ? res : (res?.jobs ?? [])
   },
-  updateJob: (id: string, data: object) => request(`/hr/jobs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   closeJob: (id: string) => request(`/hr/jobs/${id}/close`, { method: 'PATCH' }),
   getApplications: async (status?: string) => {
     const res = await request<any>(`/hr/applications${status ? `?status_filter=${status}` : ''}`)

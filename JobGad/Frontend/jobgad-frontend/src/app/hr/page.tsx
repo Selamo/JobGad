@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { Badge, Modal, Spinner, EmptyState, toast, ToastContainer } from '@/components/ui'
 import { hr, analytics, type Job } from '@/lib/api'
-import { Plus, Briefcase, Users, CheckCircle2, MapPin, Calendar, ChevronRight, X, TrendingUp } from 'lucide-react'
+import { Plus, Briefcase, Users, CheckCircle2, MapPin, Calendar, ChevronRight, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 
 const EMPLOYMENT_TYPES = ['full-time', 'part-time', 'contract', 'internship']
@@ -16,13 +16,16 @@ export default function HRPage() {
   const [jobs, setJobs]           = useState<Job[]>([])
   const [apps, setApps]           = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
-  const [showJobModal, setShowJobModal] = useState(false)
-  const [showAppModal, setShowAppModal] = useState(false)
-  const [selectedApp, setSelectedApp]   = useState<any | null>(null)
+  const [showJobModal, setShowJobModal]   = useState(false)
+  const [showAppModal, setShowAppModal]   = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedApp, setSelectedApp]     = useState<any | null>(null)
+  const [editingJob, setEditingJob]       = useState<any | null>(null)
+  const [editForm, setEditForm]           = useState<any>({})
   const [saving, setSaving]       = useState(false)
   const [statusNote, setStatusNote] = useState('')
   const [newStatus, setNewStatus]   = useState('')
-  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [analyticsData, setAnalyticsData]       = useState<any>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [form, setForm] = useState({
     title: '', location: '', description: '',
@@ -87,6 +90,33 @@ export default function HRPage() {
     finally { setSaving(false) }
   }
 
+  function openEditJob(job: any) {
+    setEditingJob(job)
+    setEditForm({
+      title:           job.title,
+      location:        job.location || '',
+      description:     job.description || '',
+      requirements:    job.requirements || '',
+      salary_range:    job.salary_range || '',
+      employment_type: job.employment_type || 'full-time',
+      status:          job.is_active ? 'published' : 'closed',
+    })
+    setShowEditModal(true)
+  }
+
+  async function handleEditJob() {
+    if (!editingJob) return
+    setSaving(true)
+    try {
+      await hr.updateJob(editingJob.id, editForm)
+      toast('Job updated successfully', 'success')
+      setShowEditModal(false); setEditingJob(null)
+      await loadAll()
+    } catch (e: any) { toast(e.message || 'Failed to update job', 'error') }
+    finally { setSaving(false) }
+  }
+
+  function updateEdit(k: string, v: string) { setEditForm((p: any) => ({ ...p, [k]: v })) }
   function openApp(app: any) { setSelectedApp(app); setNewStatus(app.status); setStatusNote(''); setShowAppModal(true) }
   function resetForm() { setForm({ title: '', location: '', description: '', requirements: '', salary_range: '', employment_type: 'full-time' }) }
   function update(k: string, v: string) { setForm(p => ({ ...p, [k]: v })) }
@@ -148,7 +178,7 @@ export default function HRPage() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
       ) : (
         <>
-          {/* ── Jobs ───────────────────────────────────────────────────── */}
+          {/* ── Jobs ─────────────────────────────────────────────────── */}
           {tab === 'jobs' && (
             jobs.length === 0 ? (
               <EmptyState icon={<Briefcase size={28} />} title="No jobs posted yet"
@@ -179,6 +209,9 @@ export default function HRPage() {
                         <button className="btn btn-ghost btn-sm" onClick={() => setTab('applications')}>
                           <Users size={13} /> View applications
                         </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEditJob(job)}>
+                          Edit
+                        </button>
                         {job.is_active && (
                           <button className="btn btn-danger btn-sm" onClick={() => handleCloseJob(job.id)}>
                             <X size={13} /> Close job
@@ -192,7 +225,7 @@ export default function HRPage() {
             )
           )}
 
-          {/* ── Applications ────────────────────────────────────────────── */}
+          {/* ── Applications ──────────────────────────────────────────── */}
           {tab === 'applications' && (
             apps.length === 0 ? (
               <EmptyState icon={<Users size={28} />} title="No applications yet"
@@ -224,7 +257,7 @@ export default function HRPage() {
             )
           )}
 
-          {/* ── Analytics ────────────────────────────────────────────────── */}
+          {/* ── Analytics ────────────────────────────────────────────── */}
           {tab === 'analytics' && (
             analyticsLoading || !analyticsData ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
@@ -265,7 +298,8 @@ export default function HRPage() {
                     <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600, marginBottom: 20 }}>Status Breakdown</h3>
                     <ResponsiveContainer width="100%" height={220}>
                       <PieChart>
-                        <Pie data={analyticsData.status_breakdown} dataKey="value" nameKey="status" cx="50%" cy="50%" outerRadius={80}
+                        <Pie data={analyticsData.status_breakdown} dataKey="value" nameKey="status"
+                          cx="50%" cy="50%" outerRadius={80}
                           label={({ status, percent }: any) => `${status} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                           {(analyticsData.status_breakdown || []).map((_: any, i: number) => (
                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -295,7 +329,7 @@ export default function HRPage() {
         </>
       )}
 
-      {/* Post Job Modal */}
+      {/* ── Post Job Modal ──────────────────────────────────────────────── */}
       <Modal open={showJobModal} onClose={() => { if (!saving) { setShowJobModal(false); resetForm() } }} title="Post a New Job" maxWidth={560}>
         <div className="modal-body">
           <div className="form-group">
@@ -336,7 +370,61 @@ export default function HRPage() {
         </div>
       </Modal>
 
-      {/* Application Detail Modal */}
+      {/* ── Edit Job Modal ──────────────────────────────────────────────── */}
+      <Modal open={showEditModal} onClose={() => { if (!saving) { setShowEditModal(false); setEditingJob(null) } }} title="Edit Job Listing" maxWidth={560}>
+        <div className="modal-body">
+          <div className="form-group">
+            <label className="label">Job title</label>
+            <input className="input" placeholder="e.g. Backend Python Developer"
+              value={editForm.title || ''} onChange={e => updateEdit('title', e.target.value)} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+              <label className="label">Location</label>
+              <input className="input" placeholder="e.g. Douala, Cameroon"
+                value={editForm.location || ''} onChange={e => updateEdit('location', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="label">Employment type</label>
+              <select className="input" value={editForm.employment_type || 'full-time'} onChange={e => updateEdit('employment_type', e.target.value)}>
+                {EMPLOYMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="label">Salary range <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+            <input className="input" placeholder="e.g. 500,000 - 800,000 FCFA/month"
+              value={editForm.salary_range || ''} onChange={e => updateEdit('salary_range', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="label">Status</label>
+            <select className="input" value={editForm.status || 'published'} onChange={e => updateEdit('status', e.target.value)}>
+              <option value="published">Published — visible to graduates</option>
+              <option value="draft">Draft — hidden from graduates</option>
+              <option value="closed">Closed — no longer accepting applications</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="label">Job description</label>
+            <textarea className="input" rows={4} placeholder="Describe the role..."
+              value={editForm.description || ''} onChange={e => updateEdit('description', e.target.value)} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="label">Requirements</label>
+            <textarea className="input" rows={3} placeholder="List the skills and experience required..."
+              value={editForm.requirements || ''} onChange={e => updateEdit('requirements', e.target.value)} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={() => { setShowEditModal(false); setEditingJob(null) }} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleEditJob} disabled={saving || !editForm.title}>
+            {saving ? <Spinner size="sm" /> : <CheckCircle2 size={14} />}
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── Application Detail Modal ────────────────────────────────────── */}
       <Modal open={showAppModal} onClose={() => { if (!saving) setShowAppModal(false) }} title="Review Application" maxWidth={500}>
         {selectedApp && (
           <>
