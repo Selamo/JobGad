@@ -101,6 +101,7 @@ export const profile = {
   create: (data: Partial<Profile>) => request('/profile/me', { method: 'POST', body: JSON.stringify(data) }),
   update: (data: Partial<Profile>) => request('/profile/me', { method: 'PUT', body: JSON.stringify(data) }),
   delete: () => request('/profile/me', { method: 'DELETE' }),
+  parseCV: (docId: string) => request<any>(`/profile/documents/${docId}/parse-cv`, { method: 'POST' }),
   completeness: async () => {
     const res = await request<any>('/profile/me/completeness')
     return typeof res === 'number' ? res : (res?.profile_completeness ?? 0)

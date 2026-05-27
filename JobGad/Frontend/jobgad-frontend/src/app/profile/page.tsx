@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProgressBar, Modal, Spinner, EmptyState, toast, ToastContainer } from '@/components/ui'
 import { profile, type Profile, type Skill, type Document, type SkillGap } from '@/lib/api'
-import { Plus, Trash2, Upload, RefreshCw, Link as LinkIcon, Globe, CheckCircle2, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Plus, Trash2, Upload, RefreshCw, Link as LinkIcon, Globe, CheckCircle2, ChevronDown, ChevronUp, X, Sparkles } from 'lucide-react'
 
 const PROFICIENCY = ['beginner', 'intermediate', 'advanced', 'expert']
 const CATEGORIES  = ['technical', 'soft', 'tool', 'domain']
@@ -19,8 +19,11 @@ export default function ProfilePage() {
   const [saving, setSaving]       = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [uploadingCV, setUploadingCV] = useState(false)
+  const [parsing, setParsing]     = useState<string | null>(null)
   const [showSkillModal, setShowSkillModal] = useState(false)
   const [showGapModal, setShowGapModal]     = useState(false)
+  const [showParseResult, setShowParseResult] = useState(false)
+  const [parseResult, setParseResult]         = useState<any>(null)
   const [expandSocials, setExpandSocials]   = useState(false)
   const [newSkill, setNewSkill]   = useState({ name: '', category: 'technical', proficiency: 'intermediate' })
   const [form, setForm]           = useState<Partial<Profile>>({})
@@ -40,7 +43,6 @@ export default function ProfilePage() {
         setProf(p.value)
         setForm(p.value)
       } else {
-        // Profile does not exist yet — show empty form
         setProf(null)
         setForm({})
       }
@@ -108,6 +110,20 @@ export default function ProfilePage() {
     } finally {
       setUploadingCV(false)
       e.target.value = ''
+    }
+  }
+
+  async function handleParseCV(docId: string) {
+    setParsing(docId)
+    try {
+      const res = await profile.parseCV(docId)
+      setParseResult(res)
+      setShowParseResult(true)
+      await loadAll()
+    } catch (e: any) {
+      toast(e.message || 'Failed to parse CV', 'error')
+    } finally {
+      setParsing(null)
     }
   }
 
@@ -254,6 +270,8 @@ export default function ProfilePage() {
 
         {/* RIGHT */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Documents */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Documents</h3>
@@ -264,26 +282,51 @@ export default function ProfilePage() {
               </label>
             </div>
             {docs.length === 0 ? (
-              <EmptyState title="No documents yet" description="Upload your CV to auto-extract skills." />
+              <EmptyState title="No documents yet" description="Upload your CV to auto-extract skills and fill your profile." />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {docs.map(doc => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, textTransform: 'capitalize' }}>{doc.doc_type} · {doc.processing_status}</div>
+                  <div key={doc.id} style={{ padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+                    {/* Doc info row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {doc.file_name}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, textTransform: 'capitalize' }}>
+                          {doc.doc_type} · {doc.processing_status}
+                        </div>
+                      </div>
+                      {doc.processing_status === 'completed' && (
+                        <CheckCircle2 size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
+                      )}
+                      <button
+                        onClick={() => profile.deleteDocument(doc.id).then(loadAll)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
+                        <Trash2 size={13} />
+                      </button>
                     </div>
-                    {doc.processing_status === 'completed' && <CheckCircle2 size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />}
-                    <button onClick={() => profile.deleteDocument(doc.id).then(loadAll)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
-                      <Trash2 size={13} />
-                    </button>
+
+                    {/* Parse CV button — only show for CV type documents */}
+                    {doc.doc_type === 'cv' && doc.processing_status === 'completed' && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleParseCV(doc.id)}
+                        disabled={parsing === doc.id}
+                        style={{ width: '100%', justifyContent: 'center' }}>
+                        {parsing === doc.id
+                          ? <><Spinner size="sm" /> Parsing CV...</>
+                          : <><Sparkles size={13} /> Parse CV &amp; Fill Profile</>
+                        }
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </div>
 
+          {/* Skills */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div>
@@ -317,6 +360,7 @@ export default function ProfilePage() {
             )}
           </div>
 
+          {/* Proficiency legend */}
           <div className="card" style={{ padding: '14px 16px' }}>
             <p className="label-caps" style={{ marginBottom: 10 }}>Skill proficiency legend</p>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
@@ -361,6 +405,78 @@ export default function ProfilePage() {
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={() => setShowSkillModal(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={handleAddSkill} disabled={!newSkill.name.trim()}>Add skill</button>
+        </div>
+      </Modal>
+
+      {/* Parse CV Result Modal */}
+      <Modal open={showParseResult} onClose={() => setShowParseResult(false)} title="CV Parsed Successfully" maxWidth={480}>
+        <div className="modal-body">
+          {parseResult && (
+            <>
+              {/* Summary */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 24, fontWeight: 500, color: 'var(--blue-bright)' }}>
+                    {parseResult.updated_fields?.length ?? 0}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Fields filled</div>
+                </div>
+                <div style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 24, fontWeight: 500, color: 'var(--green)' }}>
+                    {parseResult.skills_count ?? 0}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Skills added</div>
+                </div>
+              </div>
+
+              {/* Message */}
+              <div style={{ padding: '12px 14px', background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.15)', borderRadius: 8, marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{parseResult.message}</p>
+              </div>
+
+              {/* Fields updated */}
+              {parseResult.updated_fields?.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p className="label-caps" style={{ marginBottom: 8 }}>Fields updated</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {parseResult.updated_fields.map((f: string) => (
+                      <span key={f} style={{ background: 'var(--green-dim)', color: 'var(--green)', fontSize: 11, padding: '3px 9px', borderRadius: 5, fontWeight: 500, textTransform: 'capitalize' }}>
+                        {f.replace('_', ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Skills added */}
+              {parseResult.skills_added?.length > 0 && (
+                <div>
+                  <p className="label-caps" style={{ marginBottom: 8 }}>Skills added ({parseResult.skills_added.length})</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 120, overflowY: 'auto' }}>
+                    {parseResult.skills_added.map((s: string) => (
+                      <span key={s} style={{ background: 'var(--bg-elevated)', color: 'var(--blue-bright)', fontSize: 11, padding: '3px 9px', borderRadius: 5, fontWeight: 500, border: '1px solid var(--border-default)' }}>
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Profile completeness */}
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Profile completeness</span>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, color: 'var(--blue-bright)' }}>
+                    {parseResult.profile_completeness}%
+                  </span>
+                </div>
+                <ProgressBar value={parseResult.profile_completeness} />
+              </div>
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-primary" onClick={() => setShowParseResult(false)}>Done</button>
         </div>
       </Modal>
 
