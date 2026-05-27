@@ -190,4 +190,3 @@ async def update_application_status(
         new_status=data.status,
         hr_notes=data.hr_notes,
     )
-    

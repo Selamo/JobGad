@@ -127,8 +127,22 @@ async def hr_create_job(
         except Exception as e:
             print(f"[HR Service] Pinecone indexing failed (non-fatal): {e}")
 
-    return job
+        # ── Notify matching graduates ─────────────────────────────────────
+        try:
+            company_name = hr_profile.company.name if hr_profile.company else "the company"
 
+            # Run AI matching for this specific job against all graduate profiles
+            from app.services.matching_service import run_matching_for_new_job
+            await run_matching_for_new_job(db, job)
+
+            # Notify graduates whose match score is above 50%
+            from app.services.job_alert_service import notify_matching_graduates
+            notified = await notify_matching_graduates(db, job, company_name, min_score=0.5)
+            print(f"[HR Service] Job alerts sent to {notified} graduates")
+        except Exception as e:
+            print(f"[HR Service] Job alert trigger failed (non-fatal): {e}")
+
+    return job
 
 async def hr_update_job(
     db: AsyncSession,

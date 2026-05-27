@@ -465,3 +465,51 @@ async def send_job_match_email(
         subject=f"🎯 {match_count} New Job Matches Found!",
         body=_base_template("New Job Matches Found!", content),
     )
+
+async def send_job_alert_email(
+    email: str,
+    full_name: str,
+    job_title: str,
+    company_name: str,
+    match_score: int,
+    job_location: str,
+    employment_type: str,
+) -> None:
+    """Notify graduate of a new job that matches their profile."""
+    score_color = "#16a34a" if match_score >= 80 else "#2563EB" if match_score >= 60 else "#f59e0b"
+    content = f"""
+        <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
+        <p style="color: #374151;">
+            Great news! A new job has been posted that matches your profile.
+        </p>
+        <div style="background-color: #eff6ff; border-left: 4px solid #2563EB;
+                    padding: 16px; margin: 16px 0; border-radius: 4px;">
+            <p style="color: #374151; margin: 0;">
+                <strong>Position:</strong> {job_title}<br/>
+                <strong>Company:</strong> {company_name}<br/>
+                <strong>Location:</strong> {job_location}<br/>
+                <strong>Type:</strong> {employment_type.replace('-', ' ').title()}<br/>
+                <strong>Match Score:</strong>
+                <span style="color: {score_color}; font-weight: bold;">{match_score}%</span>
+            </p>
+        </div>
+        <p style="color: #374151;">
+            Don't miss out — apply now before the position is filled!
+        </p>
+        <div style="text-align: center; margin: 32px 0;">
+            <a href="https://job-gad.vercel.app/jobs"
+               style="background-color: #2563EB; color: white; padding: 12px 24px;
+                      border-radius: 6px; text-decoration: none; font-weight: bold;">
+                View Job & Apply
+            </a>
+        </div>
+        <p style="color: #6b7280; font-size: 12px;">
+            You are receiving this alert because your profile matches this job.
+            Log in to JobGad to manage your job alerts.
+        </p>
+    """
+    await send_email(
+        recipients=[email],
+        subject=f"🎯 New Job Match — {job_title} at {company_name} ({match_score}% match)",
+        body=_base_template("New Job Match Alert!", content),
+    )
