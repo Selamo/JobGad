@@ -203,9 +203,8 @@ class GeminiLiveSession:
                 self.session = session
                 print("[Gemini Live] Connected to Gemini Live API")
 
-                await session.send(
-                    input="Please begin the interview now.",
-                    end_of_turn=True,
+                await session.send_realtime_input(
+                    text="Please begin the interview now."
                 )
 
                 await asyncio.gather(
@@ -231,10 +230,8 @@ class GeminiLiveSession:
                     audio_chunk = await asyncio.wait_for(audio_input_queue.get(), timeout=0.1)
                     if audio_chunk is None:
                         break
-                    await session.send(
-                        input=types.LiveClientRealtimeInput(
-                            media_chunks=[types.Blob(data=audio_chunk, mime_type="audio/pcm;rate=16000")]
-                        )
+                    await session.send_realtime_input(
+                        audio=types.Blob(data=audio_chunk, mime_type="audio/pcm;rate=16000")
                     )
                 except asyncio.TimeoutError:
                     continue
@@ -253,24 +250,30 @@ class GeminiLiveSession:
                 except asyncio.QueueEmpty:
                     pass
 
-                if response.data:
-                    audio_b64 = base64.b64encode(response.data).decode()
-                    await audio_output_queue.put({
-                        "type": "audio_chunk",
-                        "data": audio_b64,
-                        "mime_type": "audio/pcm;rate=24000",
-                    })
+                content = response.server_content
+                if content:
+                    if content.model_turn:
+                        for part in content.model_turn.parts:
+                            if part.inline_data:
+                                audio_b64 = base64.b64encode(part.inline_data.data).decode()
+                                await audio_output_queue.put({
+                                    "type": "audio_chunk",
+                                    "data": audio_b64,
+                                    "mime_type": "audio/pcm;rate=24000",
+                                })
 
-                if response.text:
-                    text = response.text
-                    self.transcript.append({"role": "interviewer", "text": text})
-                    await text_output_queue.put({"type": "transcript", "role": "interviewer", "text": text})
-                    if "INTERVIEW_COMPLETE" in text:
-                        await text_output_queue.put({"type": "interview_complete"})
-                        break
+                    if content.model_turn:
+                        for part in content.model_turn.parts:
+                            if part.text:
+                                text = part.text
+                                self.transcript.append({"role": "interviewer", "text": text})
+                                await text_output_queue.put({"type": "transcript", "role": "interviewer", "text": text})
+                                if "INTERVIEW_COMPLETE" in text:
+                                    await text_output_queue.put({"type": "interview_complete"})
+                                    break
 
-                if response.server_content and response.server_content.turn_complete:
-                    await text_output_queue.put({"type": "turn_complete"})
+                    if content.turn_complete:
+                        await text_output_queue.put({"type": "turn_complete"})
 
             except Exception as e:
                 print(f"[Gemini Live] Receive error: {e}")
@@ -278,7 +281,7 @@ class GeminiLiveSession:
 
     async def send_text(self, text: str):
         if self.session:
-            await self.session.send(input=text, end_of_turn=True)
+            await self.session.send_realtime_input(text=text)
 
     async def disconnect(self):
         self.is_connected = False
