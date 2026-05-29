@@ -1,8 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
-import { Badge, Modal, Spinner, EmptyState, toast, ToastContainer } from '@/components/ui'
-import { ProgressBar, ScoreRing } from '@/components/ui'
+import { Badge, Modal, Spinner, EmptyState, toast, ToastContainer, ProgressBar } from '@/components/ui'
 import { hr, analytics, type Job } from '@/lib/api'
 import { Plus, Briefcase, Users, CheckCircle2, MapPin, Calendar, ChevronRight, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
@@ -17,20 +16,20 @@ export default function HRPage() {
   const [jobs, setJobs]           = useState<Job[]>([])
   const [apps, setApps]           = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
-  const [showJobModal, setShowJobModal]   = useState(false)
-  const [showAppModal, setShowAppModal]   = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [selectedApp, setSelectedApp]     = useState<any | null>(null)
-  const [editingJob, setEditingJob]       = useState<any | null>(null)
-  const [editForm, setEditForm]           = useState<any>({})
-  const [saving, setSaving]       = useState(false)
+  const [showJobModal, setShowJobModal]         = useState(false)
+  const [showAppModal, setShowAppModal]         = useState(false)
+  const [showEditModal, setShowEditModal]       = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [selectedApp, setSelectedApp]           = useState<any | null>(null)
+  const [editingJob, setEditingJob]             = useState<any | null>(null)
+  const [editForm, setEditForm]                 = useState<any>({})
+  const [applicantProfile, setApplicantProfile] = useState<any | null>(null)
+  const [profileLoading, setProfileLoading]     = useState(false)
+  const [saving, setSaving]         = useState(false)
   const [statusNote, setStatusNote] = useState('')
   const [newStatus, setNewStatus]   = useState('')
   const [analyticsData, setAnalyticsData]       = useState<any>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
-  const [showProfileModal, setShowProfileModal] = useState(false)
-  const [applicantProfile, setApplicantProfile] = useState<any | null>(null)
-  const [profileLoading, setProfileLoading]     = useState(false)
   const [form, setForm] = useState({
     title: '', location: '', description: '',
     requirements: '', salary_range: '', employment_type: 'full-time',
@@ -86,14 +85,13 @@ export default function HRPage() {
     setProfileLoading(true)
     setShowProfileModal(true)
     try {
-        const res = await hr.getApplicantProfile(appId)
-        setApplicantProfile(res)
+      const res = await hr.getApplicantProfile(appId)
+      setApplicantProfile(res)
     } catch (e: any) {
-        toast(e.message || 'Failed to load profile', 'error')
-        setShowProfileModal(false)
+      toast(e.message || 'Failed to load profile', 'error')
+      setShowProfileModal(false)
     } finally { setProfileLoading(false) }
-}
-
+  }
 
   async function handleUpdateStatus() {
     if (!selectedApp || !newStatus) return
@@ -251,22 +249,24 @@ export default function HRPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {apps.map(app => (
                   <div key={app.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: 'var(--blue-dim)', color: 'var(--blue-bright)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
                       {getApplicantInitial(app)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{getApplicantName(app)}</p>
-                          <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Applied for: <span style={{ color: 'var(--text-secondary)' }}>{getJobTitle(app)}</span></p>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <Badge label={app.status} />
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{getAppDate(app)}</span>
-                          <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
-                        </div>
-                      </div>
+                      <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{getApplicantName(app)}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Applied for: <span style={{ color: 'var(--text-secondary)' }}>{getJobTitle(app)}</span>
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <Badge label={app.status} />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{getAppDate(app)}</span>
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleViewProfile(app.id)}>
+                        View profile
+                      </button>
+                      <button className="btn btn-primary btn-sm" onClick={() => openApp(app)}>
+                        Review
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -392,14 +392,12 @@ export default function HRPage() {
         <div className="modal-body">
           <div className="form-group">
             <label className="label">Job title</label>
-            <input className="input" placeholder="e.g. Backend Python Developer"
-              value={editForm.title || ''} onChange={e => updateEdit('title', e.target.value)} />
+            <input className="input" value={editForm.title || ''} onChange={e => updateEdit('title', e.target.value)} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="form-group">
               <label className="label">Location</label>
-              <input className="input" placeholder="e.g. Douala, Cameroon"
-                value={editForm.location || ''} onChange={e => updateEdit('location', e.target.value)} />
+              <input className="input" value={editForm.location || ''} onChange={e => updateEdit('location', e.target.value)} />
             </div>
             <div className="form-group">
               <label className="label">Employment type</label>
@@ -410,8 +408,7 @@ export default function HRPage() {
           </div>
           <div className="form-group">
             <label className="label">Salary range <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
-            <input className="input" placeholder="e.g. 500,000 - 800,000 FCFA/month"
-              value={editForm.salary_range || ''} onChange={e => updateEdit('salary_range', e.target.value)} />
+            <input className="input" value={editForm.salary_range || ''} onChange={e => updateEdit('salary_range', e.target.value)} />
           </div>
           <div className="form-group">
             <label className="label">Status</label>
@@ -423,13 +420,11 @@ export default function HRPage() {
           </div>
           <div className="form-group">
             <label className="label">Job description</label>
-            <textarea className="input" rows={4} placeholder="Describe the role..."
-              value={editForm.description || ''} onChange={e => updateEdit('description', e.target.value)} />
+            <textarea className="input" rows={4} value={editForm.description || ''} onChange={e => updateEdit('description', e.target.value)} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="label">Requirements</label>
-            <textarea className="input" rows={3} placeholder="List the skills and experience required..."
-              value={editForm.requirements || ''} onChange={e => updateEdit('requirements', e.target.value)} />
+            <textarea className="input" rows={3} value={editForm.requirements || ''} onChange={e => updateEdit('requirements', e.target.value)} />
           </div>
         </div>
         <div className="modal-footer">
@@ -439,6 +434,143 @@ export default function HRPage() {
             {saving ? 'Saving...' : 'Save changes'}
           </button>
         </div>
+      </Modal>
+
+      {/* ── Applicant Profile Modal ─────────────────────────────────────── */}
+      <Modal open={showProfileModal} onClose={() => { setShowProfileModal(false); setApplicantProfile(null) }} title="Applicant Profile" maxWidth={560}>
+        {profileLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner size="lg" /></div>
+        ) : applicantProfile ? (
+          <>
+            <div className="modal-body">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'var(--bg-elevated)', borderRadius: 10, marginBottom: 20 }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--blue-dim)', color: 'var(--blue-bright)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, flexShrink: 0 }}>
+                  {applicantProfile.user.full_name.charAt(0)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>{applicantProfile.user.full_name}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{applicantProfile.user.email}</p>
+                  {applicantProfile.profile.headline && (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{applicantProfile.profile.headline}</p>
+                  )}
+                </div>
+                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 22, fontWeight: 600, color: applicantProfile.iri.overall_score >= 70 ? 'var(--green)' : applicantProfile.iri.overall_score >= 50 ? 'var(--blue-bright)' : 'var(--yellow)' }}>
+                    {Math.round(applicantProfile.iri.overall_score)}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>IRI Score</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Profile completeness</span>
+                  <span style={{ fontSize: 12, fontFamily: 'DM Mono, monospace', color: 'var(--blue-bright)' }}>{applicantProfile.profile.profile_completeness}%</span>
+                </div>
+                <ProgressBar value={applicantProfile.profile.profile_completeness} />
+              </div>
+
+              {(applicantProfile.profile.education_level || applicantProfile.profile.institution) && (
+                <div style={{ marginBottom: 16, padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                  <p className="label-caps" style={{ marginBottom: 8 }}>Education</p>
+                  <p style={{ fontSize: 13, fontWeight: 500 }}>
+                    {applicantProfile.profile.education_level}
+                    {applicantProfile.profile.field_of_study ? ` in ${applicantProfile.profile.field_of_study}` : ''}
+                  </p>
+                  {applicantProfile.profile.institution && (
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {applicantProfile.profile.institution}
+                      {applicantProfile.profile.graduation_year ? ` · ${applicantProfile.profile.graduation_year}` : ''}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {applicantProfile.profile.bio && (
+                <div style={{ marginBottom: 16 }}>
+                  <p className="label-caps" style={{ marginBottom: 6 }}>About</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{applicantProfile.profile.bio}</p>
+                </div>
+              )}
+
+              {applicantProfile.iri.overall_score > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <p className="label-caps" style={{ marginBottom: 10 }}>
+                    Interview Readiness ({applicantProfile.iri.total_sessions} session{applicantProfile.iri.total_sessions !== 1 ? 's' : ''})
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {([
+                      ['Communication', applicantProfile.iri.communication],
+                      ['Technical',     applicantProfile.iri.technical_accuracy],
+                      ['Confidence',    applicantProfile.iri.confidence],
+                      ['Structure',     applicantProfile.iri.structure],
+                    ] as [string, number][]).map(([label, val]) => (
+                      <ProgressBar key={label} label={label} value={val} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {applicantProfile.profile.skills?.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <p className="label-caps" style={{ marginBottom: 8 }}>Skills ({applicantProfile.profile.skills.length})</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {applicantProfile.profile.skills.map((s: any, i: number) => (
+                      <span key={i} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', fontSize: 11, padding: '3px 9px', borderRadius: 5, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(applicantProfile.profile.github_url || applicantProfile.profile.linkedin_url) && (
+                <div style={{ marginBottom: 16 }}>
+                  <p className="label-caps" style={{ marginBottom: 8 }}>Links</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {applicantProfile.profile.github_url && (
+                      <a href={applicantProfile.profile.github_url} target="_blank" rel="noreferrer"
+                        style={{ fontSize: 12, color: 'var(--blue-bright)', textDecoration: 'none' }}>
+                        GitHub → {applicantProfile.profile.github_url}
+                      </a>
+                    )}
+                    {applicantProfile.profile.linkedin_url && (
+                      <a href={applicantProfile.profile.linkedin_url} target="_blank" rel="noreferrer"
+                        style={{ fontSize: 12, color: 'var(--blue-bright)', textDecoration: 'none' }}>
+                        LinkedIn → {applicantProfile.profile.linkedin_url}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {applicantProfile.application.cover_letter && (
+                <div>
+                  <p className="label-caps" style={{ marginBottom: 8 }}>Cover Letter</p>
+                  <div style={{ padding: '12px 14px', background: 'var(--bg-elevated)', borderRadius: 8, maxHeight: 150, overflowY: 'auto' }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+                      {applicantProfile.application.cover_letter}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => { setShowProfileModal(false); setApplicantProfile(null) }}>Close</button>
+              <button className="btn btn-primary" onClick={() => {
+                setShowProfileModal(false)
+                openApp({
+                  id: applicantProfile.application.id,
+                  status: applicantProfile.application.status,
+                  user: applicantProfile.user,
+                  job: { title: '' },
+                })
+              }}>
+                Review Application
+              </button>
+            </div>
+          </>
+        ) : null}
       </Modal>
 
       {/* ── Application Detail Modal ────────────────────────────────────── */}
