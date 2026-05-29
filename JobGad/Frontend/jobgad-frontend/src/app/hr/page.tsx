@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { Badge, Modal, Spinner, EmptyState, toast, ToastContainer } from '@/components/ui'
+import { ProgressBar, ScoreRing } from '@/components/ui'
 import { hr, analytics, type Job } from '@/lib/api'
 import { Plus, Briefcase, Users, CheckCircle2, MapPin, Calendar, ChevronRight, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
@@ -27,6 +28,9 @@ export default function HRPage() {
   const [newStatus, setNewStatus]   = useState('')
   const [analyticsData, setAnalyticsData]       = useState<any>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [applicantProfile, setApplicantProfile] = useState<any | null>(null)
+  const [profileLoading, setProfileLoading]     = useState(false)
   const [form, setForm] = useState({
     title: '', location: '', description: '',
     requirements: '', salary_range: '', employment_type: 'full-time',
@@ -77,6 +81,19 @@ export default function HRPage() {
     try { await hr.closeJob(id); toast('Job closed', 'info'); await loadAll() }
     catch (e: any) { toast(e.message || 'Failed to close job', 'error') }
   }
+
+  async function handleViewProfile(appId: string) {
+    setProfileLoading(true)
+    setShowProfileModal(true)
+    try {
+        const res = await hr.getApplicantProfile(appId)
+        setApplicantProfile(res)
+    } catch (e: any) {
+        toast(e.message || 'Failed to load profile', 'error')
+        setShowProfileModal(false)
+    } finally { setProfileLoading(false) }
+}
+
 
   async function handleUpdateStatus() {
     if (!selectedApp || !newStatus) return
@@ -233,7 +250,7 @@ export default function HRPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {apps.map(app => (
-                  <div key={app.id} className="card card-interactive" onClick={() => openApp(app)}
+                  <div key={app.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: 'var(--blue-dim)', color: 'var(--blue-bright)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
                       {getApplicantInitial(app)}

@@ -225,6 +225,7 @@ export const hr = {
     const res = await request<any>(`/hr/applications${status ? `?status_filter=${status}` : ''}`)
     return Array.isArray(res) ? res : (res?.applications ?? [])
   },
+  getApplicantProfile: (appId: string) => request<any>(`/hr/applications/${appId}/applicant`),
   getJobApplications: (jobId: string) => request<Application[]>(`/hr/jobs/${jobId}/applications`),
   updateApplicationStatus: (appId: string, status: string, notes?: string) =>
     request(`/hr/applications/${appId}/status`, { method: 'PATCH', body: JSON.stringify({ status, hr_notes: notes }) }),
