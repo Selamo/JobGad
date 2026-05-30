@@ -4,6 +4,8 @@ HR routes — job posting and application management for approved HR users.
 from uuid import UUID
 from typing import Optional
 
+from fastapi import APIRouter, Depends, Query, status, HTTPException
+from sqlalchemy.future import select
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func
@@ -26,8 +28,8 @@ from app.services.hr_service import (
     hr_get_job_applications,
     hr_update_application_status,
     hr_get_all_applications,
-    hr_update_job
-    get_approved_hr
+    hr_update_job,
+    _get_approved_hr
 )
 
 router = APIRouter()
