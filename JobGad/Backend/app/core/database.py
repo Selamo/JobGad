@@ -7,8 +7,11 @@ from app.core.config import settings
 # Create async engine for PostgreSQL
 engine = create_async_engine(
     settings.DATABASE_URI,
-    echo=settings.ENVIRONMENT == "development",
+    echo=False,
     future=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
 )
 
 # Async session factory

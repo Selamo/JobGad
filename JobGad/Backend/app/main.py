@@ -9,6 +9,10 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.core.rate_limiter import limiter
+from app.core.logging_config import setup_logging
+
+# Configure logging before anything else
+setup_logging()
 from app.core.error_handler import (
     validation_exception_handler,
     sqlalchemy_exception_handler,
@@ -156,7 +160,11 @@ app.include_router(
     prefix=f"{settings.API_V1_STR}/dashboard",
     tags=["Dashboard"],
 )
-app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["analytics"])
+app.include_router(
+    analytics_router,
+    prefix=f"{settings.API_V1_STR}/analytics",
+    tags=["Analytics"],
+)
 
 # ─── Health Check ─────────────────────────────────────────────────────────────
 @app.get("/health", tags=["System"])
