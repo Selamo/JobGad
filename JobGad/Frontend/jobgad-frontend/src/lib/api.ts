@@ -77,6 +77,10 @@ export async function downloadFile(path: string, filename: string) {
 export const auth = {
   register: (data: { email: string; password: string; full_name: string; role: string }) =>
     request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  forgotPassword: (email: string) =>
+    request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, new_password: string) =>
+    request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, new_password }) }),
   login: async (email: string, password: string) => {
     const form = new URLSearchParams()
     form.append('username', email)
