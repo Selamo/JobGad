@@ -76,12 +76,7 @@ export default function LoginPage() {
               </div>
 
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <label className="label" style={{ marginBottom: 0 }}>Password</label>
-                  <Link href="/forgot-password" style={{ fontSize: 12, color: 'var(--blue-bright)', textDecoration: 'none' }}>
-                    Forgot password?
-                  </Link>
-                </div>
+                
                 <div style={{ position: 'relative' }}>
                   <input
                     className="input"
@@ -100,6 +95,12 @@ export default function LoginPage() {
                   >
                     {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label className="label" style={{ marginBottom: 0 }}>Password</label>
+                  <Link href="/forgot-password" style={{ fontSize: 12, color: 'var(--blue-bright)', textDecoration: 'none' }}>
+                    Forgot password?
+                  </Link>
                 </div>
               </div>
 
