@@ -513,3 +513,38 @@ async def send_job_alert_email(
         subject=f"🎯 New Job Match — {job_title} at {company_name} ({match_score}% match)",
         body=_base_template("New Job Match Alert!", content),
     )
+
+
+async def send_password_reset_email(
+    email: str,
+    full_name: str,
+    reset_token: str,
+) -> None:
+    """Send password reset email with a secure link."""
+    reset_url = f"https://job-gad.vercel.app/reset-password?token={reset_token}"
+    content = f"""
+        <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
+        <p style="color: #374151;">
+            We received a request to reset your JobGad password.
+            Click the button below to set a new password.
+        </p>
+        <div style="text-align: center; margin: 32px 0;">
+            <a href="{reset_url}"
+               style="background-color: #2563EB; color: white; padding: 12px 24px;
+                      border-radius: 6px; text-decoration: none; font-weight: bold;">
+                Reset My Password
+            </a>
+        </div>
+        <p style="color: #6b7280; font-size: 13px;">
+            This link expires in <strong>30 minutes</strong>.
+            If you did not request a password reset, you can safely ignore this email.
+        </p>
+        <p style="color: #6b7280; font-size: 12px; margin-top: 16px;">
+            Or copy this link: {reset_url}
+        </p>
+    """
+    await send_email(
+        recipients=[email],
+        subject="🔐 Reset your JobGad password",
+        body=_base_template("Password Reset Request", content),
+    )
