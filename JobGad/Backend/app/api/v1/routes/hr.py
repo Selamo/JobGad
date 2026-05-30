@@ -27,6 +27,7 @@ from app.services.hr_service import (
     hr_update_application_status,
     hr_get_all_applications,
     hr_update_job
+    get_approved_hr
 )
 
 router = APIRouter()

@@ -6,21 +6,28 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr
 from app.core.config import settings
 
+APP_URL = "https://job-gad.vercel.app"
+
 # ─── Mail Configuration ───────────────────────────────────────────────────────
 
-mail_config = ConnectionConfig(
-    MAIL_USERNAME=settings.MAIL_USERNAME,
-    MAIL_PASSWORD=settings.MAIL_PASSWORD,
-    MAIL_FROM=settings.MAIL_FROM,
-    MAIL_FROM_NAME=settings.MAIL_FROM_NAME,
-    MAIL_PORT=settings.MAIL_PORT,
-    MAIL_SERVER=settings.MAIL_SERVER,
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-)
-
-fm = FastMail(mail_config)
+try:
+    mail_config = ConnectionConfig(
+        MAIL_USERNAME=settings.MAIL_USERNAME,
+        MAIL_PASSWORD=settings.MAIL_PASSWORD,
+        MAIL_FROM=settings.MAIL_FROM,
+        MAIL_FROM_NAME=settings.MAIL_FROM_NAME,
+        MAIL_PORT=settings.MAIL_PORT,
+        MAIL_SERVER=settings.MAIL_SERVER,
+        MAIL_STARTTLS=True,
+        MAIL_SSL_TLS=False,
+        USE_CREDENTIALS=True,
+        VALIDATE_CERTS=True,
+    )
+    fm = FastMail(mail_config)
+    print("[Email] Mail service initialized successfully")
+except Exception as e:
+    print(f"[Email] Mail config failed — email sending disabled: {e}")
+    fm = None
 
 
 # ─── Base Email Sender ────────────────────────────────────────────────────────
@@ -30,10 +37,9 @@ async def send_email(
     subject: str,
     body: str,
 ) -> bool:
-    """
-    Send an HTML email to a list of recipients.
-    Returns True on success, False on failure.
-    """
+    if not fm:
+        print(f"[Email] Mail not configured — skipping '{subject}' to {recipients}")
+        return False
     try:
         message = MessageSchema(
             subject=subject,
@@ -52,28 +58,21 @@ async def send_email(
 # ─── Email Templates ──────────────────────────────────────────────────────────
 
 def _base_template(title: str, content: str) -> str:
-    """Base HTML email template with JobGad branding."""
     return f"""
     <html>
     <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
         <div style="max-width: 600px; margin: auto; background-color: #ffffff;
                     border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-
-            <!-- Header -->
             <div style="background-color: #2563EB; padding: 24px; text-align: center;">
                 <h1 style="color: #ffffff; margin: 0; font-size: 24px;">JobGad</h1>
                 <p style="color: #bfdbfe; margin: 4px 0 0 0; font-size: 14px;">
                     AI-Powered Career Acceleration
                 </p>
             </div>
-
-            <!-- Content -->
             <div style="padding: 32px;">
                 <h2 style="color: #1e293b; margin-top: 0;">{title}</h2>
                 {content}
             </div>
-
-            <!-- Footer -->
             <div style="background-color: #f8fafc; padding: 16px; text-align: center;
                         border-top: 1px solid #e2e8f0;">
                 <p style="color: #94a3b8; font-size: 12px; margin: 0;">
@@ -92,7 +91,6 @@ def _base_template(title: str, content: str) -> str:
 # ─── Specific Email Functions ─────────────────────────────────────────────────
 
 async def send_welcome_email(email: str, full_name: str) -> None:
-    """Send welcome email when a new user registers."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -106,7 +104,7 @@ async def send_welcome_email(email: str, full_name: str) -> None:
             <li>Practice with our AI interview coach</li>
         </ul>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/profile"
+            <a href="{APP_URL}/profile"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
                 Complete Your Profile
@@ -124,7 +122,6 @@ async def send_welcome_email(email: str, full_name: str) -> None:
 
 
 async def send_company_approved_email(email: str, full_name: str, company_name: str) -> None:
-    """Notify company creator that their company was approved."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -133,15 +130,14 @@ async def send_company_approved_email(email: str, full_name: str, company_name: 
         </p>
         <p style="color: #374151;">You can now:</p>
         <ul style="color: #374151;">
-            <li>Add HR members to your company</li>
             <li>Post job listings</li>
             <li>Review applications from graduates</li>
         </ul>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/company"
+            <a href="{APP_URL}/hr"
                style="background-color: #16a34a; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
-                Go to Company Dashboard
+                Go to HR Dashboard
             </a>
         </div>
     """
@@ -153,12 +149,8 @@ async def send_company_approved_email(email: str, full_name: str, company_name: 
 
 
 async def send_company_rejected_email(
-    email: str,
-    full_name: str,
-    company_name: str,
-    reason: str,
+    email: str, full_name: str, company_name: str, reason: str,
 ) -> None:
-    """Notify company creator that their company was rejected."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -167,9 +159,7 @@ async def send_company_rejected_email(
         </p>
         <div style="background-color: #fef2f2; border-left: 4px solid #dc2626;
                     padding: 16px; margin: 16px 0; border-radius: 4px;">
-            <p style="color: #374151; margin: 0;">
-                <strong>Reason:</strong> {reason}
-            </p>
+            <p style="color: #374151; margin: 0;"><strong>Reason:</strong> {reason}</p>
         </div>
         <p style="color: #374151;">
             You can address these issues and re-submit your company registration.
@@ -182,12 +172,7 @@ async def send_company_rejected_email(
     )
 
 
-async def send_hr_approved_email(
-    email: str,
-    full_name: str,
-    company_name: str,
-) -> None:
-    """Notify HR user that their account was approved."""
+async def send_hr_approved_email(email: str, full_name: str, company_name: str) -> None:
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -201,7 +186,7 @@ async def send_hr_approved_email(
             <li>Shortlist and contact candidates</li>
         </ul>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/hr/jobs"
+            <a href="{APP_URL}/hr"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
                 Post Your First Job
@@ -216,12 +201,8 @@ async def send_hr_approved_email(
 
 
 async def send_hr_rejected_email(
-    email: str,
-    full_name: str,
-    company_name: str,
-    reason: str,
+    email: str, full_name: str, company_name: str, reason: str,
 ) -> None:
-    """Notify HR user that their account was rejected."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -230,9 +211,7 @@ async def send_hr_rejected_email(
         </p>
         <div style="background-color: #fef2f2; border-left: 4px solid #dc2626;
                     padding: 16px; margin: 16px 0; border-radius: 4px;">
-            <p style="color: #374151; margin: 0;">
-                <strong>Reason:</strong> {reason}
-            </p>
+            <p style="color: #374151; margin: 0;"><strong>Reason:</strong> {reason}</p>
         </div>
     """
     await send_email(
@@ -243,19 +222,14 @@ async def send_hr_rejected_email(
 
 
 async def send_application_received_email(
-    hr_email: str,
-    hr_name: str,
-    applicant_name: str,
-    job_title: str,
-    company_name: str,
-    application_id: str,
+    hr_email: str, hr_name: str, applicant_name: str,
+    job_title: str, company_name: str, application_id: str,
 ) -> None:
-    """Notify HR that a new application was received."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{hr_name}</strong>,</p>
         <p style="color: #374151;">
-            A new application has been received for the position of
-            <strong>{job_title}</strong> at <strong>{company_name}</strong>.
+            A new application has been received for <strong>{job_title}</strong>
+            at <strong>{company_name}</strong>.
         </p>
         <div style="background-color: #eff6ff; border-left: 4px solid #2563EB;
                     padding: 16px; margin: 16px 0; border-radius: 4px;">
@@ -266,7 +240,7 @@ async def send_application_received_email(
             </p>
         </div>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/hr/applications/{application_id}"
+            <a href="{APP_URL}/hr"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
                 Review Application
@@ -281,19 +255,12 @@ async def send_application_received_email(
 
 
 async def send_application_status_email(
-    email: str,
-    full_name: str,
-    job_title: str,
-    company_name: str,
-    new_status: str,
-    hr_notes: str = None,
+    email: str, full_name: str, job_title: str,
+    company_name: str, new_status: str, hr_notes: str = None,
 ) -> None:
-    """Notify graduate that their application status has changed."""
     status_colors = {
-        "reviewed":    "#f59e0b",
-        "shortlisted": "#16a34a",
-        "rejected":    "#dc2626",
-        "accepted":    "#16a34a",
+        "reviewed": "#f59e0b", "shortlisted": "#16a34a",
+        "rejected": "#dc2626", "accepted": "#16a34a",
     }
     status_messages = {
         "reviewed":    "Your application is currently being reviewed by the HR team.",
@@ -303,7 +270,6 @@ async def send_application_status_email(
     }
     color = status_colors.get(new_status, "#6b7280")
     message = status_messages.get(new_status, "Your application status has been updated.")
-
     notes_section = ""
     if hr_notes:
         notes_section = f"""
@@ -314,7 +280,6 @@ async def send_application_status_email(
             </p>
         </div>
         """
-
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -333,7 +298,7 @@ async def send_application_status_email(
         </div>
         {notes_section}
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/applications"
+            <a href="{APP_URL}/applications"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
                 View My Applications
@@ -348,25 +313,17 @@ async def send_application_status_email(
 
 
 async def send_cv_ready_email(
-    email: str,
-    full_name: str,
-    job_title: str,
-    company_name: str,
-    download_url: str,
+    email: str, full_name: str, job_title: str,
+    company_name: str, download_url: str,
 ) -> None:
-    """Notify graduate that their AI-generated CV is ready."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
             Your AI-generated CV for <strong>{job_title}</strong> at
             <strong>{company_name}</strong> is ready for download!
         </p>
-        <p style="color: #374151;">
-            The CV has been tailored specifically for this role, highlighting
-            your most relevant skills and experience.
-        </p>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="{download_url}"
+            <a href="{APP_URL}/cv"
                style="background-color: #16a34a; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
                 Download Your CV
@@ -374,7 +331,6 @@ async def send_cv_ready_email(
         </div>
         <p style="color: #6b7280; font-size: 14px;">
             Review your CV before submitting your application.
-            You can always generate a new one if needed.
         </p>
     """
     await send_email(
@@ -385,19 +341,15 @@ async def send_cv_ready_email(
 
 
 async def send_interview_completed_email(
-    email: str,
-    full_name: str,
-    job_title: str,
-    iri_score: float,
-    feedback_summary: str,
+    email: str, full_name: str, job_title: str,
+    iri_score: float, feedback_summary: str,
 ) -> None:
-    """Notify graduate that their interview session is complete with results."""
     score_color = "#16a34a" if iri_score >= 70 else "#f59e0b" if iri_score >= 50 else "#dc2626"
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
             Your AI interview coaching session for <strong>{job_title}</strong>
-            has been completed. Here are your results:
+            has been completed.
         </p>
         <div style="text-align: center; margin: 24px 0;">
             <div style="display: inline-block; background-color: {score_color};
@@ -405,22 +357,19 @@ async def send_interview_completed_email(
                         line-height: 80px; font-size: 28px; font-weight: bold;">
                 {int(iri_score)}
             </div>
-            <p style="color: #374151; margin: 8px 0 0 0;">
-                Interview Readiness Index (IRI)
-            </p>
+            <p style="color: #374151; margin: 8px 0 0 0;">Interview Readiness Index (IRI)</p>
         </div>
         <div style="background-color: #f8fafc; border-left: 4px solid {score_color};
                     padding: 16px; margin: 16px 0; border-radius: 4px;">
             <p style="color: #374151; margin: 0;">
-                <strong>Feedback Summary:</strong><br/>
-                {feedback_summary}
+                <strong>Feedback Summary:</strong><br/>{feedback_summary}
             </p>
         </div>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/coaching"
+            <a href="{APP_URL}/coaching"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
-                View Full Report & Learning Plan
+                View Full Report
             </a>
         </div>
     """
@@ -432,14 +381,9 @@ async def send_interview_completed_email(
 
 
 async def send_job_match_email(
-    email: str,
-    full_name: str,
-    match_count: int,
-    top_job_title: str,
-    top_company: str,
-    top_score: float,
+    email: str, full_name: str, match_count: int,
+    top_job_title: str, top_company: str, top_score: float,
 ) -> None:
-    """Notify graduate of new job matches."""
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -453,7 +397,7 @@ async def send_job_match_email(
             </p>
         </div>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="http://localhost:3000/jobs/matches"
+            <a href="{APP_URL}/jobs"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
                 View All Matches
@@ -466,22 +410,16 @@ async def send_job_match_email(
         body=_base_template("New Job Matches Found!", content),
     )
 
+
 async def send_job_alert_email(
-    email: str,
-    full_name: str,
-    job_title: str,
-    company_name: str,
-    match_score: int,
-    job_location: str,
-    employment_type: str,
+    email: str, full_name: str, job_title: str,
+    company_name: str, match_score: int,
+    job_location: str, employment_type: str,
 ) -> None:
-    """Notify graduate of a new job that matches their profile."""
     score_color = "#16a34a" if match_score >= 80 else "#2563EB" if match_score >= 60 else "#f59e0b"
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
-        <p style="color: #374151;">
-            Great news! A new job has been posted that matches your profile.
-        </p>
+        <p style="color: #374151;">A new job has been posted that matches your profile.</p>
         <div style="background-color: #eff6ff; border-left: 4px solid #2563EB;
                     padding: 16px; margin: 16px 0; border-radius: 4px;">
             <p style="color: #374151; margin: 0;">
@@ -493,19 +431,15 @@ async def send_job_alert_email(
                 <span style="color: {score_color}; font-weight: bold;">{match_score}%</span>
             </p>
         </div>
-        <p style="color: #374151;">
-            Don't miss out — apply now before the position is filled!
-        </p>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="https://job-gad.vercel.app/jobs"
+            <a href="{APP_URL}/jobs"
                style="background-color: #2563EB; color: white; padding: 12px 24px;
                       border-radius: 6px; text-decoration: none; font-weight: bold;">
-                View Job & Apply
+                View Job &amp; Apply
             </a>
         </div>
         <p style="color: #6b7280; font-size: 12px;">
-            You are receiving this alert because your profile matches this job.
-            Log in to JobGad to manage your job alerts.
+            You are receiving this because your profile matches this job.
         </p>
     """
     await send_email(
@@ -516,12 +450,9 @@ async def send_job_alert_email(
 
 
 async def send_password_reset_email(
-    email: str,
-    full_name: str,
-    reset_token: str,
+    email: str, full_name: str, reset_token: str,
 ) -> None:
-    """Send password reset email with a secure link."""
-    reset_url = f"https://job-gad.vercel.app/reset-password?token={reset_token}"
+    reset_url = f"{APP_URL}/reset-password?token={reset_token}"
     content = f"""
         <p style="color: #374151;">Hi <strong>{full_name}</strong>,</p>
         <p style="color: #374151;">
@@ -537,7 +468,7 @@ async def send_password_reset_email(
         </div>
         <p style="color: #6b7280; font-size: 13px;">
             This link expires in <strong>30 minutes</strong>.
-            If you did not request a password reset, you can safely ignore this email.
+            If you did not request this, ignore this email.
         </p>
         <p style="color: #6b7280; font-size: 12px; margin-top: 16px;">
             Or copy this link: {reset_url}

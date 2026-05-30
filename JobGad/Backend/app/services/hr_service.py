@@ -20,7 +20,7 @@ from app.tools.scoring_tools import build_job_text
 
 # ─── Permission Helpers ───────────────────────────────────────────────────────
 
-async def _get_approved_hr(db: AsyncSession, user: User) -> HRProfile:
+async def get_approved_hr(db: AsyncSession, user: User) -> HRProfile:
     """
     Get the HR profile for the current user.
     Raises 403 if user is not HR or not yet approved.
