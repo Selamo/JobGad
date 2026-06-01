@@ -262,15 +262,13 @@ class GeminiLiveSession:
                                     "mime_type": "audio/pcm;rate=24000",
                                 })
 
-                    if content.model_turn:
-                        for part in content.model_turn.parts:
-                            if part.text:
-                                text = part.text
-                                self.transcript.append({"role": "interviewer", "text": text})
-                                await text_output_queue.put({"type": "transcript", "role": "interviewer", "text": text})
-                                if "INTERVIEW_COMPLETE" in text:
-                                    await text_output_queue.put({"type": "interview_complete"})
-                                    break
+                    if content.output_transcription:
+                        text = content.output_transcription.text
+                        self.transcript.append({"role": "interviewer", "text": text})
+                        await text_output_queue.put({"type": "transcript", "role": "interviewer", "text": text})
+                        if "INTERVIEW_COMPLETE" in text:
+                            await text_output_queue.put({"type": "interview_complete"})
+                            # Do not break since there might be audio chunks as well
 
                     if content.turn_complete:
                         await text_output_queue.put({"type": "turn_complete"})

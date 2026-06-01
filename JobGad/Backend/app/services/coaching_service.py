@@ -36,7 +36,7 @@ async def submit_answer(
     """Evaluate a candidate's answer using Gemini AI."""
     import asyncio
     import json
-    import google.generativeai as genai
+    from google import genai
     from app.core.config import settings
 
     # Get session
@@ -64,8 +64,7 @@ async def submit_answer(
     total_questions = len(total_result.scalars().all())
 
     # Evaluate with Gemini
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     prompt = f"""
 You are an expert interview coach evaluating a candidate's answer.
@@ -100,8 +99,11 @@ Return ONLY valid JSON, no markdown:
 
     def _sync_evaluate():
         try:
-            response = model.generate_content(prompt)
-            raw = response.text.strip()
+            response = client.interactions.create(
+                model="gemini-3-flash-preview",
+                input=prompt
+            )
+            raw = response.steps[-1].content[0].text.strip()
             if raw.startswith("```"):
                 parts = raw.split("```")
                 raw = parts[1] if len(parts) > 1 else raw

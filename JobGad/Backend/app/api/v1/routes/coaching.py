@@ -285,11 +285,10 @@ async def _generate_questions(
     """Generate 5 interview questions using Gemini AI."""
     import asyncio
     import json
-    import google.generativeai as genai
+    from google import genai
     from app.core.config import settings
 
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     prompt = f"""
 You are an expert interviewer. Generate exactly 5 interview questions for a candidate.
@@ -329,8 +328,11 @@ Generate all 5 questions following this exact format.
 
     def _sync_generate():
         try:
-            response = model.generate_content(prompt)
-            raw = response.text.strip()
+            response = client.interactions.create(
+                model="gemini-3-flash-preview",
+                input=prompt
+            )
+            raw = response.steps[-1].content[0].text.strip()
             if raw.startswith("```"):
                 parts = raw.split("```")
                 raw = parts[1] if len(parts) > 1 else raw
