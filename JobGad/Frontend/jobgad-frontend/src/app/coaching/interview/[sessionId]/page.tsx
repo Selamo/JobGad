@@ -116,10 +116,20 @@ export default function InterviewRoom() {
       }
 
       case 'transcript':
-        setTranscript(p => [...p, {
-          role: msg.data.role as string,
-          text: msg.data.text as string,
-        }])
+        setTranscript(p => {
+          if (p.length > 0 && p[p.length - 1].role === msg.data.role) {
+            const newTranscript = [...p]
+            newTranscript[newTranscript.length - 1] = {
+              ...newTranscript[newTranscript.length - 1],
+              text: newTranscript[newTranscript.length - 1].text + msg.data.text
+            }
+            return newTranscript
+          }
+          return [...p, {
+            role: msg.data.role as string,
+            text: msg.data.text as string,
+          }]
+        })
         setTimeout(() => {
           if (transcriptRef.current)
             transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
