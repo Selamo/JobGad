@@ -140,6 +140,7 @@ class GeminiLiveSession:
         self.client = None
         self.config = None
         self.transcript = []
+        self.input_transcript_buffer = ""
 
     async def connect(self) -> bool:
         # Check if Gemini Live package is available
@@ -171,6 +172,8 @@ class GeminiLiveSession:
                 system_instruction=types.Content(
                     parts=[types.Part(text=system_prompt)]
                 ),
+                input_audio_transcription=types.AudioTranscriptionConfig(),
+                output_audio_transcription=types.AudioTranscriptionConfig(),
             )
 
             self.client = client
@@ -268,7 +271,19 @@ class GeminiLiveSession:
                         await text_output_queue.put({"type": "transcript", "role": "interviewer", "text": text})
                         if "INTERVIEW_COMPLETE" in text:
                             await text_output_queue.put({"type": "interview_complete"})
-                            # Do not break since there might be audio chunks as well
+
+                    if content.input_transcription:
+                        text = content.input_transcription.text
+                        print(f"[Gemini Live] Received input transcription chunk: '{text}'")
+                        self.input_transcript_buffer += text
+                        self.transcript.append({"role": "candidate", "text": text})
+                        await text_output_queue.put({"type": "transcript", "role": "candidate", "text": text})
+                    else:
+                        # Log if we got something else, just to see if we're getting any events
+                        if content.model_turn or content.turn_complete:
+                            pass
+                        elif not content.output_transcription:
+                            print(f"[Gemini Live] Other content received: {content}")
 
                     if content.turn_complete:
                         await text_output_queue.put({"type": "turn_complete"})
@@ -276,10 +291,26 @@ class GeminiLiveSession:
             except Exception as e:
                 print(f"[Gemini Live] Receive error: {e}")
                 break
+        print("[Gemini Live] _receive_audio loop exited cleanly!")
+
+    def get_and_clear_input_transcript(self) -> str:
+        """Return the buffered user speech transcript and reset the buffer."""
+        text = self.input_transcript_buffer.strip()
+        self.input_transcript_buffer = ""
+        return text
+
+    async def flush_audio(self):
+        """Tell Gemini the mic is paused to flush cached audio and trigger transcription."""
+        if self.session:
+            await self.session.send_realtime_input(audio_stream_end=True)
 
     async def send_text(self, text: str):
         if self.session:
-            await self.session.send_realtime_input(text=text)
+            print(f"[Gemini Live] Sending text: {text[:50]}...")
+            try:
+                await self.session.send_realtime_input(text=text)
+            except Exception as e:
+                print(f"[Gemini Live] Error sending text: {e}")
 
     async def disconnect(self):
         self.is_connected = False

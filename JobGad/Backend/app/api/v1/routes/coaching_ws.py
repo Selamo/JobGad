@@ -188,51 +188,120 @@ async def coaching_websocket(
                         if audio_b64:
                             audio_bytes = base64.b64decode(audio_b64)
                             await handler.audio_input_queue.put(audio_bytes)
+                            # Also buffer for STT transcription
+                            if not hasattr(handler, 'audio_buffer'):
+                                handler.audio_buffer = bytearray()
+                            handler.audio_buffer.extend(audio_bytes)
 
                 elif msg_type == MSG_TEXT_ANSWER:
                     question_number = msg_data.get("question_number", 1)
                     answer = msg_data.get("answer", "").strip()
                     time_taken = msg_data.get("time_taken_seconds", 60)
 
-                    if not answer:
-                        await handler.send_error("Answer cannot be empty.")
-                        continue
+                    # ── Audio mode: Tell Gemini Live to respond IMMEDIATELY ──
+                    if final_mode == "audio" and answer == "__audio_complete__" and handler.gemini_session:
+                        # 1. End audio stream so server doesn't timeout waiting for chunks
+                        try:
+                            await handler.gemini_session.session.send_realtime_input(audio_stream_end=True)
+                        except Exception as e:
+                            print(f"[Coaching WS] Error sending audio_stream_end: {e}")
 
-                    await handler.stop_timer()
+                        # 2. Tell Gemini to respond
+                        prompt = "Please provide brief verbal feedback on my answer, and then ask the next question."
+                        await handler.gemini_session.send_text(prompt)
 
-                    async with AsyncSessionLocal() as db:
-                        from app.services.coaching_service import submit_answer
-                        result = await submit_answer(
-                            db=db,
-                            user=user,
-                            session_id=session_id,
-                            question_number=question_number,
-                            answer=answer,
-                            time_taken_seconds=time_taken,
-                        )
+                        await handler.stop_timer()
 
-                    handler.evaluations.append(result.get("evaluation", {}))
-                    await handler.send(MSG_EVALUATION, result)
+                        # 3. Fire-and-forget STT and Evaluation
+                        audio_buf = getattr(handler, 'audio_buffer', bytearray())
+                        handler.audio_buffer = bytearray()
+                        _qn = question_number
+                        _tt = time_taken
 
-                    if final_mode == "audio" and handler.gemini_session:
-                        await handler.gemini_session.send_text(f"The candidate answered: {answer}")
+                        async def _transcribe_and_evaluate():
+                            try:
+                                transcribed_text = ""
+                                if len(audio_buf) > 0:
+                                    import io
+                                    import wave
+                                    wav_io = io.BytesIO()
+                                    with wave.open(wav_io, 'wb') as wav_file:
+                                        wav_file.setnchannels(1)
+                                        wav_file.setsampwidth(2)
+                                        wav_file.setframerate(16000)
+                                        wav_file.writeframes(bytes(audio_buf))
+                                    audio_bytes_wav = wav_io.getvalue()
+                                    
+                                    from google import genai as stt_genai
+                                    from google.genai import types as stt_types
+                                    stt_client = stt_genai.Client(api_key=settings.GEMINI_API_KEY)
+                                    print(f"[Coaching WS] Transcribing {len(audio_bytes_wav)} bytes of WAV audio...")
+                                    stt_resp = await asyncio.to_thread(
+                                        stt_client.models.generate_content,
+                                        model="gemini-3-flash-preview",
+                                        contents=[
+                                            stt_types.Part.from_bytes(
+                                                data=audio_bytes_wav,
+                                                mime_type="audio/wav",
+                                            ),
+                                            "Transcribe this audio exactly. Output only the transcript, nothing else.",
+                                        ],
+                                    )
+                                    transcribed_text = stt_resp.text.strip()
+                                    print(f"[Coaching WS] STT result: '{transcribed_text[:80]}...'")
+                                    if transcribed_text:
+                                        await handler.send("transcript", {"role": "candidate", "text": transcribed_text})
+                                
+                                # Now evaluate
+                                async with AsyncSessionLocal() as eval_db:
+                                    from app.services.coaching_service import submit_answer as sa
+                                    result = await sa(
+                                        db=eval_db,
+                                        user=user,
+                                        session_id=session_id,
+                                        question_number=_qn,
+                                        answer=transcribed_text or "[Inaudible]",
+                                        time_taken_seconds=_tt,
+                                    )
+                                handler.evaluations.append(result.get("evaluation", {}))
+                                await handler.send(MSG_EVALUATION, result)
+                            except Exception as e:
+                                print(f"[Coaching WS] Background STT/Evaluation error: {e}")
 
-                    if not result.get("is_last_question") and final_mode == "text":
-                        await asyncio.sleep(2)
-                        next_q = result.get("next_question")
-                        if next_q:
-                            await handler.send(MSG_QUESTION, {
-                                "question_number": next_q["question_number"],
-                                "question": next_q["question"],
-                                "type": next_q.get("type", "behavioral"),
-                                "time_limit_seconds": next_q.get("time_limit_seconds", 120),
-                                "hints": next_q.get("hints", []),
-                                "total_questions": len(handler.questions),
-                            })
-                            await handler.start_timer(
-                                seconds=next_q.get("time_limit_seconds", 120),
-                                question_number=next_q["question_number"],
+                        asyncio.create_task(_transcribe_and_evaluate())
+                        continue # Done with audio mode for this turn!
+                    else:
+                        # Text mode: evaluate synchronously as before
+                        async with AsyncSessionLocal() as db:
+                            from app.services.coaching_service import submit_answer
+                            result = await submit_answer(
+                                db=db,
+                                user=user,
+                                session_id=session_id,
+                                question_number=question_number,
+                                answer=answer,
+                                time_taken_seconds=time_taken,
                             )
+
+                        handler.evaluations.append(result.get("evaluation", {}))
+                        await handler.send(MSG_EVALUATION, result)
+
+                        if not result.get("is_last_question"):
+                            await asyncio.sleep(2)
+                            next_q = result.get("next_question")
+                            if next_q:
+                                await handler.send(MSG_QUESTION, {
+                                    "question_number": next_q["question_number"],
+                                    "question": next_q["question"],
+                                    "type": next_q.get("type", "behavioral"),
+                                    "time_limit_seconds": next_q.get("time_limit_seconds", 120),
+                                    "hints": next_q.get("hints", []),
+                                    "total_questions": len(handler.questions),
+                                })
+                                await handler.start_timer(
+                                    seconds=next_q.get("time_limit_seconds", 120),
+                                    question_number=next_q["question_number"],
+                                )
 
                 elif msg_type == MSG_END_SESSION:
                     await handler.stop_timer()

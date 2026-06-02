@@ -116,6 +116,9 @@ export default function InterviewRoom() {
       }
 
       case 'transcript':
+        if (msg.data.role === 'interviewer') {
+          setState('interviewing')
+        }
         setTranscript(p => {
           if (p.length > 0 && p[p.length - 1].role === msg.data.role) {
             const newTranscript = [...p]
@@ -141,7 +144,12 @@ export default function InterviewRoom() {
         break
 
       case 'evaluation':
-        setState('evaluating')
+        // In audio mode, evaluation runs concurrently with Gemini's verbal
+        // response. Don't override 'interviewing' state or we'll show a
+        // spinner while the AI is already speaking.
+        if (mode === 'text') {
+          setState('evaluating')
+        }
         if (msg.data.evaluation) setEvaluation(msg.data.evaluation as Evaluation)
         setDoneQ(msg.data.question_number as number)
         setIsLastQ(!!(msg.data.is_last_question))
@@ -338,6 +346,11 @@ export default function InterviewRoom() {
                     </div>
                     <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>AI interviewer is speaking...</p>
                     <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Listen carefully then hold the mic button to respond</p>
+                  </>
+                ) : state === 'evaluating' ? (
+                  <>
+                    <div className="spinner spinner-lg" />
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Processing your response...</p>
                   </>
                 ) : (
                   <>
