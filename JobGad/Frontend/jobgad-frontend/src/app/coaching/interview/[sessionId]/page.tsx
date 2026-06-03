@@ -71,12 +71,12 @@ export default function InterviewRoom() {
   const [error, setError]             = useState('')
 
   // ── Refs ──────────────────────────────────────────────────────────────────
-  const answerStart       = useRef(Date.now())
-  const transcriptRef     = useRef<HTMLDivElement>(null)
-  const currentAudioQ     = useRef(1)
-  const recordingStart    = useRef(0)
-  const recordingActive   = useRef(false)   // ← KEY FIX: guard against accidental triggers
-  const recognitionRef    = useRef<any>(null)
+  const answerStart     = useRef(Date.now())
+  const transcriptRef   = useRef<HTMLDivElement>(null)
+  const currentAudioQ   = useRef(1)
+  const recordingStart  = useRef(0)
+  const recordingActive = useRef(false)
+  const recognitionRef  = useRef<any>(null)
 
   const { enqueueAudio, stopAudio }                                       = useAudioPlayer()
   const { startRecording, stopRecording, requestPermission, isRecording } = useMicrophone()
@@ -196,13 +196,11 @@ export default function InterviewRoom() {
 
   // ── Audio recording with browser speech recognition ───────────────────────
   async function handleStartRecording() {
-    // Guard: reset state
     recordingActive.current = false
     recordingStart.current  = 0
     setLiveTranscript('')
 
     try {
-      // Start browser speech recognition for transcription
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       if (SR) {
         const recognition = new SR()
@@ -224,10 +222,8 @@ export default function InterviewRoom() {
         recognitionRef.current = recognition
       }
 
-      // Request mic permission
       await requestPermission()
 
-      // Only mark recording as active AFTER permission granted
       recordingActive.current = true
       recordingStart.current  = Date.now()
       answerStart.current     = Date.now()
@@ -249,7 +245,6 @@ export default function InterviewRoom() {
     stopRecording()
     if (mode !== 'audio') return
 
-    // ← KEY FIX: only proceed if recording was actually active
     if (!recordingActive.current) {
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch {}
@@ -263,7 +258,6 @@ export default function InterviewRoom() {
 
     const duration = Date.now() - recordingStart.current
     if (duration < 1500) {
-      // Too short — don't evaluate
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch {}
         recognitionRef.current = null
@@ -272,11 +266,9 @@ export default function InterviewRoom() {
       return
     }
 
-    // Stop speech recognition and get transcript
     let spokenText = ''
     if (recognitionRef.current) {
       try { recognitionRef.current.stop() } catch {}
-      // Give recognition 300ms to finalize
       await new Promise(r => setTimeout(r, 300))
       spokenText = liveTranscript.trim()
       recognitionRef.current = null
@@ -286,8 +278,6 @@ export default function InterviewRoom() {
 
     const qNum      = question?.question_number ?? currentAudioQ.current
     const timeTaken = Math.floor((Date.now() - answerStart.current) / 1000)
-
-    // If we have a transcription use it directly — otherwise signal audio complete
     const answerToSend = spokenText || '__audio_complete__'
     sendTextAnswer(answerToSend, qNum, timeTaken)
     setState('evaluating')
@@ -441,63 +431,67 @@ export default function InterviewRoom() {
             )}
           </div>
 
-          {/* Answer controls */}
-          {state === 'interviewing' && question && (
+          {/* Answer controls — audio: show as soon as interviewing, no question needed */}
+          {state === 'interviewing' && mode === 'audio' && (
             <div className="card">
-              {mode === 'audio' ? (
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-                    {isRecording
-                      ? 'Recording — release to submit your answer'
-                      : 'Hold the button and speak your answer'}
-                  </p>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                  {isRecording
+                    ? 'Recording — release to submit your answer'
+                    : question
+                      ? 'Hold the button and speak your answer'
+                      : 'Listen to the AI then hold the button to respond'}
+                </p>
 
-                  {/* Live transcription display */}
-                  {(isRecording || liveTranscript) && (
-                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, minHeight: 48, textAlign: 'left' }}>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
-                        {isRecording ? '🔴 Transcribing...' : 'Transcription:'}
-                      </p>
-                      <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                        {liveTranscript || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Listening...</span>}
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    onMouseDown={handleStartRecording}
-                    onMouseUp={handleStopAndEvaluate}
-                    onTouchStart={handleStartRecording}
-                    onTouchEnd={handleStopAndEvaluate}
-                    style={{
-                      width: 72, height: 72, borderRadius: '50%', border: 'none',
-                      cursor: 'pointer',
-                      background: isRecording ? 'var(--red)' : 'var(--blue-mid)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      margin: '0 auto', transition: 'all 0.15s',
-                      boxShadow: isRecording ? '0 0 0 8px rgba(239,68,68,0.2)' : 'none',
-                    }}>
-                    {isRecording ? <MicOff size={28} color="white" /> : <Mic size={28} color="white" />}
-                  </button>
-
-                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setMode('text')}>
-                    Switch to text mode
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <textarea className="input" rows={4} placeholder="Type your answer here..."
-                    value={textAnswer} onChange={e => setTextAnswer(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) handleSubmitText() }}
-                    style={{ resize: 'none', marginBottom: 10 }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ctrl + Enter to submit</span>
-                    <button className="btn btn-primary" onClick={handleSubmitText} disabled={!textAnswer.trim()}>
-                      <Send size={13} /> Submit answer
-                    </button>
+                {(isRecording || liveTranscript) && (
+                  <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, minHeight: 48, textAlign: 'left' }}>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {isRecording ? '🔴 Transcribing...' : 'Transcription:'}
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                      {liveTranscript || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Listening...</span>}
+                    </p>
                   </div>
+                )}
+
+                <button
+                  onMouseDown={handleStartRecording}
+                  onMouseUp={handleStopAndEvaluate}
+                  onTouchStart={handleStartRecording}
+                  onTouchEnd={handleStopAndEvaluate}
+                  style={{
+                    width: 72, height: 72, borderRadius: '50%', border: 'none',
+                    cursor: 'pointer',
+                    background: isRecording ? 'var(--red)' : 'var(--blue-mid)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    margin: '0 auto', transition: 'all 0.15s',
+                    boxShadow: isRecording ? '0 0 0 8px rgba(239,68,68,0.2)' : 'none',
+                  }}>
+                  {isRecording ? <MicOff size={28} color="white" /> : <Mic size={28} color="white" />}
+                </button>
+
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setMode('text')}>
+                  Switch to text mode
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Answer controls — text: needs question for question_number */}
+          {state === 'interviewing' && mode === 'text' && question && (
+            <div className="card">
+              <div>
+                <textarea className="input" rows={4} placeholder="Type your answer here..."
+                  value={textAnswer} onChange={e => setTextAnswer(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) handleSubmitText() }}
+                  style={{ resize: 'none', marginBottom: 10 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ctrl + Enter to submit</span>
+                  <button className="btn btn-primary" onClick={handleSubmitText} disabled={!textAnswer.trim()}>
+                    <Send size={13} /> Submit answer
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
