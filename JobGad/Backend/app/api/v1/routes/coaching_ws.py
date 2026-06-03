@@ -194,6 +194,10 @@ async def coaching_websocket(
                     answer = msg_data.get("answer", "").strip()
                     time_taken = msg_data.get("time_taken_seconds", 60)
 
+                    # Handle audio complete signal with no transcription
+                    if answer == "__audio_complete__":
+                        answer = "[Audio response — transcription unavailable. Please use text mode for best results.]"
+
                     if not answer:
                         await handler.send_error("Answer cannot be empty.")
                         continue
