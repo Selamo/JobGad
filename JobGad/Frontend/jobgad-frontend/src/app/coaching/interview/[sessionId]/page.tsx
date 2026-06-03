@@ -67,18 +67,22 @@ export default function InterviewRoom() {
   const [doneQ, setDoneQ]             = useState(0)
   const [isLastQ, setIsLastQ]         = useState(false)
   const [textAnswer, setTextAnswer]   = useState('')
+  const [liveTranscript, setLiveTranscript] = useState('')
   const [error, setError]             = useState('')
 
-  const answerStart          = useRef(Date.now())
-  const transcriptRef        = useRef<HTMLDivElement>(null)
-  const currentAudioQuestion = useRef(1)
-  const recordingStart       = useRef(0)
-  const recordingDuration    = useRef(0)
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const answerStart       = useRef(Date.now())
+  const transcriptRef     = useRef<HTMLDivElement>(null)
+  const currentAudioQ     = useRef(1)
+  const recordingStart    = useRef(0)
+  const recordingActive   = useRef(false)   // ← KEY FIX: guard against accidental triggers
+  const recognitionRef    = useRef<any>(null)
 
   const { enqueueAudio, stopAudio }                                       = useAudioPlayer()
   const { startRecording, stopRecording, requestPermission, isRecording } = useMicrophone()
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : ''
 
+  // ── Message handler ───────────────────────────────────────────────────────
   const handleMessage = useCallback((msg: { type: string; data: Record<string, unknown> }) => {
     switch (msg.type) {
 
@@ -86,7 +90,7 @@ export default function InterviewRoom() {
         setMode((msg.data.mode as 'audio' | 'text') || 'audio')
         setTotalQ((msg.data.total_questions as number) || 5)
         setPersonality((msg.data.personality as string) || 'friendly')
-        setStatusMsg((msg.data.message as string) || 'AI interviewer ready!')
+        setStatusMsg((msg.data.message as string) || 'Interview starting...')
         setState('interviewing')
         break
 
@@ -95,12 +99,14 @@ export default function InterviewRoom() {
         setQuestion(q)
         setEvaluation(null)
         setTextAnswer('')
+        setLiveTranscript('')
         setTimerSec(q.time_limit_seconds)
         setTotalSec(q.time_limit_seconds)
         setState('interviewing')
-        currentAudioQuestion.current = q.question_number
+        currentAudioQ.current = q.question_number
         answerStart.current = Date.now()
-        if (mode === 'text' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          window.speechSynthesis.cancel()
           const u = new SpeechSynthesisUtterance(q.question)
           u.rate = 0.9
           window.speechSynthesis.speak(u)
@@ -118,17 +124,14 @@ export default function InterviewRoom() {
       case 'transcript':
         setTranscript(p => {
           if (p.length > 0 && p[p.length - 1].role === msg.data.role) {
-            const newTranscript = [...p]
-            newTranscript[newTranscript.length - 1] = {
-              ...newTranscript[newTranscript.length - 1],
-              text: newTranscript[newTranscript.length - 1].text + msg.data.text
+            const updated = [...p]
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              text: updated[updated.length - 1].text + msg.data.text,
             }
-            return newTranscript
+            return updated
           }
-          return [...p, {
-            role: msg.data.role as string,
-            text: msg.data.text as string,
-          }]
+          return [...p, { role: msg.data.role as string, text: msg.data.text as string }]
         })
         setTimeout(() => {
           if (transcriptRef.current)
@@ -145,7 +148,7 @@ export default function InterviewRoom() {
         if (msg.data.evaluation) setEvaluation(msg.data.evaluation as Evaluation)
         setDoneQ(msg.data.question_number as number)
         setIsLastQ(!!(msg.data.is_last_question))
-        currentAudioQuestion.current = (msg.data.question_number as number) + 1
+        currentAudioQ.current = (msg.data.question_number as number) + 1
         break
 
       case 'session_complete':
@@ -167,7 +170,7 @@ export default function InterviewRoom() {
       default:
         break
     }
-  }, [mode, enqueueAudio, stopAudio])
+  }, [enqueueAudio, stopAudio])
 
   const { connect, disconnect, sendAudioChunk, sendTextAnswer, endSession, isConnected } =
     useInterviewSocket({
@@ -180,19 +183,64 @@ export default function InterviewRoom() {
 
   useEffect(() => {
     if (token) connect()
-    return () => { disconnect(); stopAudio(); stopRecording() }
+    return () => {
+      disconnect()
+      stopAudio()
+      stopRecording()
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+        recognitionRef.current = null
+      }
+    }
   }, [])
 
+  // ── Audio recording with browser speech recognition ───────────────────────
   async function handleStartRecording() {
+    // Guard: reset state
+    recordingActive.current = false
+    recordingStart.current  = 0
+    setLiveTranscript('')
+
     try {
+      // Start browser speech recognition for transcription
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SR) {
+        const recognition = new SR()
+        recognition.continuous     = true
+        recognition.interimResults = true
+        recognition.lang           = 'en-US'
+
+        let accumulated = ''
+        recognition.onresult = (event: any) => {
+          let interim = ''
+          for (let i = 0; i < event.results.length; i++) {
+            if (event.results[i].isFinal) accumulated += event.results[i][0].transcript + ' '
+            else interim += event.results[i][0].transcript
+          }
+          setLiveTranscript((accumulated + interim).trim())
+        }
+        recognition.onerror = () => {}
+        recognition.start()
+        recognitionRef.current = recognition
+      }
+
+      // Request mic permission
       await requestPermission()
-      answerStart.current    = Date.now()
-      recordingStart.current = Date.now()
-      const qNum = question?.question_number ?? currentAudioQuestion.current
-      await startRecording((chunk) => {
-        sendAudioChunk(chunk, qNum)
-      })
+
+      // Only mark recording as active AFTER permission granted
+      recordingActive.current = true
+      recordingStart.current  = Date.now()
+      answerStart.current     = Date.now()
+
+      const qNum = question?.question_number ?? currentAudioQ.current
+      await startRecording((chunk) => sendAudioChunk(chunk, qNum))
+
     } catch {
+      recordingActive.current = false
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+        recognitionRef.current = null
+      }
       setError('Microphone access denied. Switch to text mode.')
     }
   }
@@ -201,19 +249,47 @@ export default function InterviewRoom() {
     stopRecording()
     if (mode !== 'audio') return
 
+    // ← KEY FIX: only proceed if recording was actually active
+    if (!recordingActive.current) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+        recognitionRef.current = null
+      }
+      setLiveTranscript('')
+      return
+    }
+
+    recordingActive.current = false
+
     const duration = Date.now() - recordingStart.current
-    recordingDuration.current = duration
+    if (duration < 1500) {
+      // Too short — don't evaluate
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+        recognitionRef.current = null
+      }
+      setLiveTranscript('')
+      return
+    }
 
-    // Must record for at least 1.5 seconds
-    if (duration < 1500) return
+    // Stop speech recognition and get transcript
+    let spokenText = ''
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+      // Give recognition 300ms to finalize
+      await new Promise(r => setTimeout(r, 300))
+      spokenText = liveTranscript.trim()
+      recognitionRef.current = null
+    }
 
-    const qNum      = question?.question_number ?? currentAudioQuestion.current
+    setLiveTranscript('')
+
+    const qNum      = question?.question_number ?? currentAudioQ.current
     const timeTaken = Math.floor((Date.now() - answerStart.current) / 1000)
 
-    // Wait for last audio chunks to be sent
-    await new Promise(r => setTimeout(r, 800))
-
-    sendTextAnswer('__audio_complete__', qNum, timeTaken)
+    // If we have a transcription use it directly — otherwise signal audio complete
+    const answerToSend = spokenText || '__audio_complete__'
+    sendTextAnswer(answerToSend, qNum, timeTaken)
     setState('evaluating')
   }
 
@@ -228,6 +304,10 @@ export default function InterviewRoom() {
     endSession()
     stopAudio()
     stopRecording()
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch {}
+      recognitionRef.current = null
+    }
   }
 
   const timerColor =
@@ -241,37 +321,35 @@ export default function InterviewRoom() {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
-          <div className="animate-fade-up">
-            <p className="label-caps" style={{ marginBottom: 12 }}>Session complete</p>
-            <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Your IRI Score</h1>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 32 }}>{iriResult.readiness_level}</p>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
-              <ScoreRing score={iriResult.overall_score} size={120} />
-            </div>
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                {[
-                  ['Communication', iriResult.communication],
-                  ['Confidence',    iriResult.confidence],
-                  ['Technical',     iriResult.technical_accuracy],
-                  ['Structure',     iriResult.structure],
-                ].map(([label, val]) => (
-                  <div key={label as string} style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500, color: 'var(--blue-bright)' }}>
-                      {Math.round(val as number)}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: '12px 14px', background: 'rgba(37,99,235,0.08)', borderRadius: 8, borderLeft: '3px solid var(--blue-mid)' }}>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{iriResult.next_step}</p>
-              </div>
-            </div>
-            <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => router.push('/coaching')}>
-              Back to coaching
-            </button>
+          <p className="label-caps" style={{ marginBottom: 12 }}>Session complete</p>
+          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Your IRI Score</h1>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 32 }}>{iriResult.readiness_level}</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+            <ScoreRing score={iriResult.overall_score} size={120} />
           </div>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+              {[
+                ['Communication', iriResult.communication],
+                ['Confidence',    iriResult.confidence],
+                ['Technical',     iriResult.technical_accuracy],
+                ['Structure',     iriResult.structure],
+              ].map(([label, val]) => (
+                <div key={label as string} style={{ background: 'var(--bg-elevated)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500, color: 'var(--blue-bright)' }}>
+                    {Math.round(val as number)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '12px 14px', background: 'rgba(37,99,235,0.08)', borderRadius: 8, borderLeft: '3px solid var(--blue-mid)' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{iriResult.next_step}</p>
+            </div>
+          </div>
+          <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => router.push('/coaching')}>
+            Back to coaching
+          </button>
         </div>
       </div>
     )
@@ -304,7 +382,7 @@ export default function InterviewRoom() {
         <div>
           <span style={{ fontFamily: 'Outfit, sans-serif', fontSize: 16, fontWeight: 600 }}>AI Interview</span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10, textTransform: 'capitalize' }}>
-            {personality.replace('_', ' ')} mode
+            {mode === 'audio' ? 'Voice mode' : 'Text mode'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -331,20 +409,8 @@ export default function InterviewRoom() {
           <div className="card">
             {!question ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 12 }}>
-                {state === 'interviewing' && mode === 'audio' ? (
-                  <>
-                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(37,99,235,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--blue-core)' }} />
-                    </div>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>AI interviewer is speaking...</p>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Listen carefully then hold the mic button to respond</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="spinner spinner-lg" />
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{statusMsg}</p>
-                  </>
-                )}
+                <div className="spinner spinner-lg" />
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{statusMsg}</p>
               </div>
             ) : (
               <>
@@ -376,17 +442,28 @@ export default function InterviewRoom() {
           </div>
 
           {/* Answer controls */}
-          {state === 'interviewing' && (
+          {state === 'interviewing' && question && (
             <div className="card">
               {mode === 'audio' ? (
                 <div style={{ textAlign: 'center' }}>
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
                     {isRecording
-                      ? 'Recording — release to stop'
-                      : question
-                        ? 'Hold button to answer'
-                        : 'Listen to the AI then hold to respond'}
+                      ? 'Recording — release to submit your answer'
+                      : 'Hold the button and speak your answer'}
                   </p>
+
+                  {/* Live transcription display */}
+                  {(isRecording || liveTranscript) && (
+                    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, minHeight: 48, textAlign: 'left' }}>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                        {isRecording ? '🔴 Transcribing...' : 'Transcription:'}
+                      </p>
+                      <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                        {liveTranscript || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Listening...</span>}
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     onMouseDown={handleStartRecording}
                     onMouseUp={handleStopAndEvaluate}
@@ -402,6 +479,7 @@ export default function InterviewRoom() {
                     }}>
                     {isRecording ? <MicOff size={28} color="white" /> : <Mic size={28} color="white" />}
                   </button>
+
                   <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setMode('text')}>
                     Switch to text mode
                   </button>
@@ -425,7 +503,7 @@ export default function InterviewRoom() {
 
           {/* Evaluation feedback */}
           {evaluation && state === 'evaluating' && (
-            <div className="card animate-fade-up">
+            <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: 15, fontWeight: 600 }}>Feedback</h3>
                 <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 600, color: evaluation.overall_score >= 70 ? 'var(--green)' : 'var(--yellow)' }}>
