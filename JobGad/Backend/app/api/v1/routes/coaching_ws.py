@@ -223,7 +223,12 @@ async def coaching_websocket(
 
                     if not result.get("is_last_question") and final_mode == "text":
                         await asyncio.sleep(2)
-                        next_q = result.get("next_question")
+                        # Use handler.questions directly — already loaded, no DB query needed
+                        next_q_number = question_number + 1
+                        next_q = next(
+                            (q for q in handler.questions if q["question_number"] == next_q_number),
+                            None,
+                        )
                         if next_q:
                             await handler.send(MSG_QUESTION, {
                                 "question_number": next_q["question_number"],
@@ -237,6 +242,8 @@ async def coaching_websocket(
                                 seconds=next_q.get("time_limit_seconds", 120),
                                 question_number=next_q["question_number"],
                             )
+                        else:
+                            print(f"[WS] Warning: could not find question {next_q_number} in handler.questions")
 
                 elif msg_type == MSG_END_SESSION:
                     await handler.stop_timer()
