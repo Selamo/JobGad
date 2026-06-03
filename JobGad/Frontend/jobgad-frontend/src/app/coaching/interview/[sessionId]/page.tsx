@@ -455,10 +455,7 @@ export default function InterviewRoom() {
                 )}
 
                 <button
-                  onMouseDown={handleStartRecording}
-                  onMouseUp={handleStopAndEvaluate}
-                  onTouchStart={handleStartRecording}
-                  onTouchEnd={handleStopAndEvaluate}
+                  onClick={isRecording ? handleStopAndEvaluate : handleStartRecording}
                   style={{
                     width: 72, height: 72, borderRadius: '50%', border: 'none',
                     cursor: 'pointer',
