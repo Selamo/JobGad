@@ -189,7 +189,7 @@ async def coaching_websocket(
                             audio_bytes = base64.b64decode(audio_b64)
                             await handler.audio_input_queue.put(audio_bytes)
 
-               elif msg_type == MSG_TEXT_ANSWER:
+                elif msg_type == MSG_TEXT_ANSWER:
                     question_number = msg_data.get("question_number", 1)
                     answer = msg_data.get("answer", "").strip()
                     time_taken = msg_data.get("time_taken_seconds", 60)
