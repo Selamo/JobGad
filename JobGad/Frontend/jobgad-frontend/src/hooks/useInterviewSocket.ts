@@ -44,7 +44,7 @@ export function useInterviewSocket({
     ws.onopen = () => {
       setIsConnected(true)
       onConnect?.()
-      pingRef.current = setInterval(() => send('ping', {}), 25000)
+      pingRef.current = setInterval(() => send('ping', {}), 10000)
     }
 
     ws.onmessage = (event) => {
