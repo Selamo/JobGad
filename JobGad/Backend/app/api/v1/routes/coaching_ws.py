@@ -234,7 +234,8 @@ async def coaching_websocket(
 
                     if not result.get("is_last_question") and final_mode == "text":
                         print(f"[WS] Looking for next question Q#{question_number + 1} ...")
-                        await asyncio.sleep(2)
+                        await handler.send(MSG_PONG, {"status": "loading_next"})
+                        await asyncio.sleep(0.5)
 
                         next_q_number = question_number + 1
                         next_q = next(
