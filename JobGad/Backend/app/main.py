@@ -67,7 +67,17 @@ app = FastAPI(
 
 # ─── Rate Limiter ─────────────────────────────────────────────────────────────
 app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
+# Only apply rate limiting to HTTP routes, not WebSocket connections
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class WebSocketAwareSlowAPIMiddleware(SlowAPIMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        if request.scope.get("type") == "websocket":
+            return await call_next(request)
+        return await super().dispatch(request, call_next)
+
+app.add_middleware(WebSocketAwareSlowAPIMiddleware)
 
 # ─── CORS Middleware ──────────────────────────────────────────────────────────
 app.add_middleware(
