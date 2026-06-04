@@ -25,10 +25,15 @@ export function useInterviewSocket({
   const [isConnected, setIsConnected] = useState(false)
 
   const send = useCallback((type: string, data: Record<string, unknown>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, data }))
+    const state = wsRef.current?.readyState
+    console.log(`[WS] send called | type=${type} | readyState=${state} | OPEN=${WebSocket.OPEN}`)
+    if (state === WebSocket.OPEN) {
+      wsRef.current!.send(JSON.stringify({ type, data }))
+      console.log(`[WS] sent | type=${type}`)
+    } else {
+      console.warn(`[WS] BLOCKED — socket not open | readyState=${state}`)
     }
-  }, [])
+}, [])
 
   const connect = useCallback(() => {
     const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
