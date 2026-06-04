@@ -189,12 +189,13 @@ async def coaching_websocket(
                             audio_bytes = base64.b64decode(audio_b64)
                             await handler.audio_input_queue.put(audio_bytes)
 
-                elif msg_type == MSG_TEXT_ANSWER:
+               elif msg_type == MSG_TEXT_ANSWER:
                     question_number = msg_data.get("question_number", 1)
                     answer = msg_data.get("answer", "").strip()
                     time_taken = msg_data.get("time_taken_seconds", 60)
 
-                    # Handle audio complete signal with no transcription
+                    print(f"[WS] MSG_TEXT_ANSWER received | Q#{question_number} | answer_len={len(answer)} | final_mode={final_mode}")
+
                     if answer == "__audio_complete__":
                         answer = "[Audio response — transcription unavailable. Please use text mode for best results.]"
 
@@ -215,35 +216,46 @@ async def coaching_websocket(
                             time_taken_seconds=time_taken,
                         )
 
+                    print(f"[WS] Evaluation done | is_last={result.get('is_last_question')} | has_eval={bool(result.get('evaluation'))}")
+                    print(f"[WS] handler.questions count={len(handler.questions)} | numbers={[q['question_number'] for q in handler.questions]}")
+
                     handler.evaluations.append(result.get("evaluation", {}))
                     await handler.send(MSG_EVALUATION, result)
+                    print(f"[WS] MSG_EVALUATION sent to frontend")
 
                     if final_mode == "audio" and handler.gemini_session:
                         await handler.gemini_session.send_text(f"The candidate answered: {answer}")
 
                     if not result.get("is_last_question") and final_mode == "text":
+                        print(f"[WS] Looking for next question Q#{question_number + 1} ...")
                         await asyncio.sleep(2)
-                        # Use handler.questions directly — already loaded, no DB query needed
+
                         next_q_number = question_number + 1
                         next_q = next(
                             (q for q in handler.questions if q["question_number"] == next_q_number),
                             None,
                         )
+
                         if next_q:
                             await handler.send(MSG_QUESTION, {
                                 "question_number": next_q["question_number"],
-                                "question": next_q["question"],
-                                "type": next_q.get("type", "behavioral"),
+                                "question":        next_q["question"],
+                                "type":            next_q.get("type", "behavioral"),
                                 "time_limit_seconds": next_q.get("time_limit_seconds", 120),
-                                "hints": next_q.get("hints", []),
+                                "hints":           next_q.get("hints", []),
                                 "total_questions": len(handler.questions),
                             })
                             await handler.start_timer(
                                 seconds=next_q.get("time_limit_seconds", 120),
                                 question_number=next_q["question_number"],
                             )
+                            print(f"[WS] MSG_QUESTION Q#{next_q_number} sent to frontend ✓")
                         else:
-                            print(f"[WS] Warning: could not find question {next_q_number} in handler.questions")
+                            print(f"[WS] ERROR — Q#{next_q_number} NOT FOUND in handler.questions!")
+                            await handler.send_error(f"Could not load question {next_q_number}. Please end session.")
+
+                    elif result.get("is_last_question"):
+                        print(f"[WS] Last question answered — waiting for MSG_END_SESSION from frontend")
 
                 elif msg_type == MSG_END_SESSION:
                     await handler.stop_timer()
