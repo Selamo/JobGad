@@ -205,16 +205,22 @@ async def coaching_websocket(
 
                     await handler.stop_timer()
 
-                    async with AsyncSessionLocal() as db:
-                        from app.services.coaching_service import submit_answer
-                        result = await submit_answer(
-                            db=db,
-                            user=user,
-                            session_id=session_id,
-                            question_number=question_number,
-                            answer=answer,
-                            time_taken_seconds=time_taken,
-                        )
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            from app.services.coaching_service import submit_answer
+                            result = await submit_answer(
+                                db=db,
+                                user=user,
+                                session_id=session_id,
+                                question_number=question_number,
+                                answer=answer,
+                                time_taken_seconds=time_taken,
+                            )
+                        print(f"[WS] submit_answer completed successfully")
+                    except Exception as submit_err:
+                        print(f"[WS] submit_answer FAILED: {type(submit_err).__name__}: {submit_err}")
+                        await handler.send_error(f"Evaluation failed: {str(submit_err)}")
+                        continue
 
                     print(f"[WS] Evaluation done | is_last={result.get('is_last_question')} | has_eval={bool(result.get('evaluation'))}")
                     print(f"[WS] handler.questions count={len(handler.questions)} | numbers={[q['question_number'] for q in handler.questions]}")
@@ -259,10 +265,14 @@ async def coaching_websocket(
 
                 elif msg_type == MSG_END_SESSION:
                     await handler.stop_timer()
-                    async with AsyncSessionLocal() as db:
-                        from app.services.coaching_service import end_session
-                        final_result = await end_session(db=db, user=user, session_id=session_id)
-                    await handler.send(MSG_SESSION_COMPLETE, final_result)
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            from app.services.coaching_service import end_session
+                            final_result = await end_session(db=db, user=user, session_id=session_id)
+                        await handler.send(MSG_SESSION_COMPLETE, final_result)
+                    except Exception as end_err:
+                        print(f"[WS] end_session FAILED: {type(end_err).__name__}: {end_err}")
+                        await handler.send_error(f"Failed to end session: {str(end_err)}")
                     handler.is_active = False
                     break
 
@@ -274,13 +284,13 @@ async def coaching_websocket(
                 handler.is_active = False
                 break
             except Exception as e:
-                print(f"[WS] Error in message loop: {e}")
+                print(f"[WS] Error in message loop: {type(e).__name__}: {e}")
                 await handler.send_error(str(e))
 
     except WebSocketDisconnect:
         print(f"[WS] Connection closed for session {session_id}")
     except Exception as e:
-        print(f"[WS] Fatal error: {e}")
+        print(f"[WS] Fatal error: {type(e).__name__}: {e}")
         try:
             await handler.send_error(f"Server error: {str(e)}")
         except Exception:
