@@ -30,7 +30,11 @@ export default function ApplicationsPage() {
     setLoading(true)
     try {
       const [a, s] = await Promise.all([applications.list(), applications.stats()])
-      setApps(Array.isArray(a) ? a : [])
+      const raw = a as any
+      const appList = Array.isArray(raw)
+        ? raw
+        : (raw?.applications ?? raw?.items ?? raw?.data ?? [])
+      setApps(appList)
       setStats(s)
     } catch { setApps([]) }
     finally { setLoading(false) }
