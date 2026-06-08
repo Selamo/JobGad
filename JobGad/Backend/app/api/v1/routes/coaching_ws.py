@@ -1,7 +1,6 @@
 """
 Coaching WebSocket — reliable interview with voice and text input support.
-Gemini Live is disabled in favour of stable text-mode question delivery.
-Browser Speech Recognition handles voice-to-text on the frontend.
+Supports session resume: reconnecting starts from the first unanswered question.
 """
 import asyncio
 import base64
@@ -36,7 +35,9 @@ router = APIRouter()
 
 async def get_user_from_token(token: str):
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         user_id = payload.get("sub")
         if not user_id:
             return None
@@ -82,6 +83,7 @@ async def coaching_websocket(
                 await websocket.close(code=4000)
                 return
 
+            # Load all questions
             q_result = await db.execute(
                 select(SessionMessage)
                 .where(
@@ -106,37 +108,54 @@ async def coaching_websocket(
                 await websocket.close()
                 return
 
-        print(f"[WS] Loaded {len(handler.questions)} questions")
+            # Check how many have already been answered (for resume support)
+            answered_result = await db.execute(
+                select(SessionMessage).where(
+                    SessionMessage.session_id == session_id,
+                    SessionMessage.role == "candidate",
+                )
+            )
+            answered_count = len(answered_result.scalars().all())
+
+        total_q    = len(handler.questions)
+        # Start from first unanswered question
+        start_idx  = min(answered_count, total_q - 1)
+        first_q    = handler.questions[start_idx]
+        is_resuming = answered_count > 0
+
+        print(f"[WS] {total_q} questions | answered={answered_count} | starting at Q{first_q['question_number']}")
 
         # ── Send session ready ────────────────────────────────────────────────
-        # Always deliver questions as text for reliability.
-        # Frontend shows mic button (mode=audio) so voice answers still work
-        # via browser Speech Recognition — transcribed to text before sending.
         await handler.send(MSG_SESSION_READY, {
-            "session_id":      str(session_id),
-            "total_questions": len(handler.questions),
-            "mode":            "audio",
-            "personality":     "friendly",
-            "message":         "AI Interviewer connected! Interview starting...",
+            "session_id":       str(session_id),
+            "total_questions":  total_q,
+            "answered_count":   answered_count,
+            "mode":             "audio",
+            "personality":      "friendly",
+            "is_resuming":      is_resuming,
+            "message": (
+                f"Resuming from question {first_q['question_number']}..."
+                if is_resuming else
+                "AI Interviewer connected! Interview starting..."
+            ),
         })
 
         await asyncio.sleep(0.8)
 
-        # ── Send first question ───────────────────────────────────────────────
-        first_q = handler.questions[0]
+        # ── Send first (or resumed) question ─────────────────────────────────
         await handler.send(MSG_QUESTION, {
             "question_number":    first_q["question_number"],
             "question":           first_q["question"],
             "type":               first_q.get("type", "behavioral"),
             "time_limit_seconds": first_q.get("time_limit_seconds", 120),
             "hints":              first_q.get("hints", []),
-            "total_questions":    len(handler.questions),
+            "total_questions":    total_q,
         })
         await handler.start_timer(
             seconds=first_q.get("time_limit_seconds", 120),
             question_number=first_q["question_number"],
         )
-        print(f"[WS] Q1 of {len(handler.questions)} sent to frontend")
+        print(f"[WS] Q{first_q['question_number']} sent")
 
         # ── Main message loop ─────────────────────────────────────────────────
         while handler.is_active:
@@ -145,21 +164,21 @@ async def coaching_websocket(
                 msg_type = raw.get("type")
                 msg_data = raw.get("data", {})
 
-                # ── Keepalive ping ────────────────────────────────────────────
+                # ── Keepalive ─────────────────────────────────────────────────
                 if msg_type == MSG_PING:
                     await handler.send(MSG_PONG, {"status": "alive"})
 
-                # ── Audio chunks — ignored, browser handles transcription ──────
+                # ── Audio chunks — browser handles transcription ───────────────
                 elif msg_type == MSG_AUDIO_CHUNK:
                     pass
 
-                # ── Answer received ───────────────────────────────────────────
+                # ── Answer submitted ──────────────────────────────────────────
                 elif msg_type == MSG_TEXT_ANSWER:
                     question_number = msg_data.get("question_number", 1)
                     answer          = msg_data.get("answer", "").strip()
                     time_taken      = msg_data.get("time_taken_seconds", 60)
 
-                    print(f"[WS] Answer received | Q#{question_number} | len={len(answer)}")
+                    print(f"[WS] Answer | Q#{question_number} | len={len(answer)}")
 
                     if answer == "__audio_complete__":
                         answer = "[Voice response received]"
@@ -170,7 +189,7 @@ async def coaching_websocket(
 
                     await handler.stop_timer()
 
-                    # Evaluate the answer
+                    # Evaluate
                     try:
                         async with AsyncSessionLocal() as db:
                             from app.services.coaching_service import submit_answer
@@ -188,14 +207,11 @@ async def coaching_websocket(
                         continue
 
                     handler.evaluations.append(result.get("evaluation", {}))
-
-                    # Send evaluation feedback to frontend
                     await handler.send(MSG_EVALUATION, result)
                     print(f"[WS] Evaluation sent | Q#{question_number} | is_last={result.get('is_last_question')}")
 
-                    # Send next question unless this was the last one
+                    # Send next question
                     if not result.get("is_last_question"):
-                        # Brief keepalive so the connection stays alive during the pause
                         await handler.send(MSG_PONG, {"status": "loading_next"})
                         await asyncio.sleep(0.5)
 
@@ -213,15 +229,14 @@ async def coaching_websocket(
                                 "type":               next_q.get("type", "behavioral"),
                                 "time_limit_seconds": next_q.get("time_limit_seconds", 120),
                                 "hints":              next_q.get("hints", []),
-                                "total_questions":    len(handler.questions),
+                                "total_questions":    total_q,
                             })
                             await handler.start_timer(
                                 seconds=next_q.get("time_limit_seconds", 120),
                                 question_number=next_q["question_number"],
                             )
-                            print(f"[WS] Q#{next_q_number} sent to frontend ✓")
+                            print(f"[WS] Q#{next_q_number} sent ✓")
                         else:
-                            print(f"[WS] ERROR: Q#{next_q_number} not found in handler.questions")
                             await handler.send_error(
                                 f"Could not load question {next_q_number}. Please end the session."
                             )
@@ -238,7 +253,7 @@ async def coaching_websocket(
                                 db=db, user=user, session_id=session_id
                             )
                         await handler.send(MSG_SESSION_COMPLETE, final_result)
-                        print(f"[WS] Session completed for {user.email}")
+                        print(f"[WS] Session complete for {user.email}")
                     except Exception as err:
                         print(f"[WS] End session error: {type(err).__name__}: {err}")
                         await handler.send_error("Failed to complete session.")
