@@ -25,20 +25,15 @@ export function useInterviewSocket({
   const [isConnected, setIsConnected] = useState(false)
 
   const send = useCallback((type: string, data: Record<string, unknown>) => {
-    const state = wsRef.current?.readyState
-    console.log(`[WS] send called | type=${type} | readyState=${state} | OPEN=${WebSocket.OPEN}`)
-    if (state === WebSocket.OPEN) {
-      wsRef.current!.send(JSON.stringify({ type, data }))
-      console.log(`[WS] sent | type=${type}`)
-    } else {
-      console.warn(`[WS] BLOCKED — socket not open | readyState=${state}`)
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type, data }))
     }
-}, [])
+  }, [])
 
   const connect = useCallback(() => {
     const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'
-    const url = `${WS_URL}/api/v1/coaching/sessions/${sessionId}/ws?token=${token}&mode=${mode}`
-    const ws = new WebSocket(url)
+    const url    = `${WS_URL}/api/v1/coaching/sessions/${sessionId}/ws?token=${token}&mode=${mode}`
+    const ws     = new WebSocket(url)
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -51,18 +46,18 @@ export function useInterviewSocket({
       try {
         const msg: WSMessage = JSON.parse(event.data)
         onMessage(msg)
-      } catch (e) {
-        console.error('Failed to parse WebSocket message:', e)
+      } catch {
+        // ignore malformed messages
       }
     }
 
     ws.onclose = (event) => {
       setIsConnected(false)
       if (pingRef.current) clearInterval(pingRef.current)
-      if (event.code === 4001)      onError?.('Session expired. Please log in again.')
+      if      (event.code === 4001) onError?.('Session expired. Please log in again.')
       else if (event.code === 4004) onError?.('Session not found.')
       else if (event.code === 4000) onError?.('Session already completed.')
-      else onDisconnect?.()
+      else                          onDisconnect?.()
     }
 
     ws.onerror = () => {
